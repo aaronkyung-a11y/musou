@@ -113,6 +113,25 @@
     align-items:center; justify-content:center; padding:20px; text-align:center;
     background:radial-gradient(ellipse at 50% 40%, #241810, #0a0604 80%); }
   #storyScreen.on, #clearScreen.on{ display:flex; }
+  /* 유물 상자 */
+  #relicScreen{ position:absolute; inset:0; z-index:32; display:none; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at center, rgba(40,20,8,.96), rgba(8,4,2,.98)); }
+  #relicScreen.on{ display:flex; }
+  .relic-inner{ text-align:center; padding:20px; }
+  .relic-head{ font-size:22px; font-weight:900; color:#ffd050; letter-spacing:3px; margin-bottom:22px; text-shadow:0 0 18px rgba(255,208,80,.5); }
+  .relic-chest{ font-size:96px; cursor:pointer; user-select:none; animation:chestBob 1.1s ease-in-out infinite;
+    filter:drop-shadow(0 0 24px rgba(255,190,80,.6)); transition:transform .15s; }
+  .relic-chest:active{ transform:scale(.92); }
+  @keyframes chestBob{ 0%,100%{transform:translateY(0) rotate(-2deg)} 50%{transform:translateY(-8px) rotate(2deg)} }
+  .relic-card{ background:linear-gradient(160deg, rgba(60,45,20,.97), rgba(30,22,10,.97));
+    border:3px solid #ffd050; border-radius:18px; padding:22px 26px; max-width:300px; margin:0 auto;
+    box-shadow:0 0 34px rgba(255,208,80,.6); animation:relicPop .5s cubic-bezier(.2,1.4,.5,1); }
+  @keyframes relicPop{ 0%{transform:scale(.3);opacity:0} 100%{transform:scale(1);opacity:1} }
+  .relic-ic{ font-size:60px; }
+  .relic-name{ font-size:22px; font-weight:900; color:#ffe680; margin-top:8px; letter-spacing:2px; }
+  .relic-desc{ font-size:14px; color:#d8c69a; margin-top:10px; line-height:1.5; }
+  .relic-tap{ margin-top:22px; font-size:14px; color:#b09a72; letter-spacing:2px; animation:tapPulse 1.3s ease-in-out infinite; }
+  @keyframes tapPulse{ 0%,100%{opacity:.5} 50%{opacity:1} }
   .story-inner, .clear-inner{ max-width:600px; animation:storyIn .6s ease-out; }
   @keyframes storyIn{ 0%{opacity:0;transform:translateY(20px)} 100%{opacity:1;transform:translateY(0)} }
   .story-chapter{ font-size:20px; color:var(--gold); letter-spacing:8px; font-weight:800; }
@@ -162,6 +181,10 @@
     background:linear-gradient(160deg, rgba(60,45,20,.97), rgba(30,22,10,.97));
     box-shadow:0 0 26px rgba(255,208,80,.5); animation:evoGlow 1.2s ease-in-out infinite; }
   @keyframes evoGlow{ 0%,100%{box-shadow:0 0 20px rgba(255,208,80,.4)} 50%{box-shadow:0 0 34px rgba(255,208,80,.7)} }
+  .up-card.awk-card{ border-color:#ff7a4a; border-width:3px;
+    background:linear-gradient(160deg, rgba(70,30,20,.97), rgba(35,14,10,.97));
+    box-shadow:0 0 28px rgba(255,120,70,.6); animation:awkGlow 1s ease-in-out infinite; }
+  @keyframes awkGlow{ 0%,100%{box-shadow:0 0 22px rgba(255,120,70,.5)} 50%{box-shadow:0 0 40px rgba(255,90,40,.85)} }
 
   /* 결과 */
   .result-title{ font-size:60px; font-weight:900; letter-spacing:6px; }
@@ -352,6 +375,19 @@
     </div>
   </div>
 
+  <div id="relicScreen">
+    <div class="relic-inner">
+      <div class="relic-head">⚜️ 전리품 획득 ⚜️</div>
+      <div class="relic-chest" id="relicChest">🎁</div>
+      <div class="relic-card" id="relicCard" style="display:none">
+        <div class="relic-ic" id="relicIc"></div>
+        <div class="relic-name" id="relicName"></div>
+        <div class="relic-desc" id="relicDesc"></div>
+      </div>
+      <div class="relic-tap" id="relicTap">상자를 눌러 개봉</div>
+    </div>
+  </div>
+
   <div class="screen on" id="titleScreen">
     <div class="brush-title">無雙記</div>
     <div class="sub-title">무 쌍 기 · 일기당천</div>
@@ -402,7 +438,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v3.8";
+const GAME_VER = "v3.9";
 window.addEventListener('DOMContentLoaded', ()=>{
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -811,6 +847,67 @@ function availableEvolution(g){
 }
 
 /* =========================================================
+   2차 각성(覺醒) — 진화를 이미 마친 무장이 조건을 더 채우면 해금.
+   무장별 최종 시그니처. 스탯 대폭 상승 + 각성 오라 발동.
+   ========================================================= */
+const AWAKENINGS=[
+  { id:'awk_guanyu', hero:'관우', name:'무신강림', ic:'🔥', d:'화염 참격이 전방위 화룡으로 · 대미지 대폭↑',
+    req:{dmg:6}, apply:s=>{ s.awk.guanyu=true; s.dmgMul*=1.35; s.rangeMul+=0.25; } },
+  { id:'awk_zhaoyun', hero:'조운', name:'상산무적', ic:'💫', d:'용담창이 4갈래 분열 + 관통 무한',
+    req:{dmg:5,pierce:2}, apply:s=>{ s.awk.zhaoyun=true; s.pierce+=99; s.dmgMul*=1.25; } },
+  { id:'awk_zhangfei', hero:'장비', name:'만부부당', ic:'🌋', d:'충격파가 상시 광역 지진으로 확대',
+    req:{dmg:6,hp:4}, apply:s=>{ s.awk.zhangfei=true; s.dmgMul*=1.3; s.rangeMul+=0.35; } },
+  { id:'awk_lubu', hero:'여포', name:'비장방천', ic:'🀄', d:'회전 참격 다중 링 · 크리 2.5배',
+    req:{dmg:6,rate:4}, apply:s=>{ s.awk.lubu=true; s.crit+=0.4; s.dmgMul*=1.2; s.rangeMul+=0.3; } },
+  { id:'awk_huangzhong', hero:'황충', name:'노장출사', ic:'🎯', d:'화살 8발 부채꼴 + 폭발탄',
+    req:{dmg:5,range:3}, apply:s=>{ s.awk.huangzhong=true; s.dmgMul*=1.3; s.pierce+=3; } },
+  { id:'awk_taishici', hero:'태사자', name:'신정난무', ic:'🌀', d:'4연격이 8연 연속 난무로',
+    req:{rate:4,dmg:4}, apply:s=>{ s.awk.taishici=true; s.rateMul*=0.7; s.dmgMul*=1.2; } },
+  { id:'awk_xiahoudun', hero:'하후돈', name:'담안수라', ic:'👁️', d:'관통 참격 3연 + 흡혈',
+    req:{dmg:6,cdr:3}, apply:s=>{ s.awk.xiahoudun=true; s.dmgMul*=1.3; s.vamp+=0.05; } },
+  { id:'awk_zhangliao', hero:'장료', name:'요진질풍', ic:'🌊', d:'돌진 관통이 연속 질주 폭풍으로',
+    req:{dmg:5,spd:3}, apply:s=>{ s.awk.zhangliao=true; s.dmgMul*=1.3; s.spdMul+=0.2; } },
+  { id:'awk_xuchu', hero:'허저', name:'호치광란', ic:'💪', d:'대도 범위 최대 + 넉백 폭발',
+    req:{dmg:6,hp:4}, apply:s=>{ s.awk.xuchu=true; s.dmgMul*=1.35; s.rangeMul+=0.4; } },
+  { id:'awk_sunce', hero:'손책', name:'소패패왕', ic:'⚡', d:'파동이 다중 확산 + 연격 강화',
+    req:{rate:4,dmg:4}, apply:s=>{ s.awk.sunce=true; s.dmgMul*=1.3; s.rateMul*=0.8; } },
+  { id:'awk_ganning', hero:'감녕', name:'금범수적', ic:'🏹', d:'강궁 6발 연사 + 전탄 관통',
+    req:{dmg:5,rate:3}, apply:s=>{ s.awk.ganning=true; s.dmgMul*=1.3; s.pierce+=4; } },
+];
+// 각성 조건 충족 여부 (진화를 이미 마쳤고, 아직 각성 안 했고, 조건 만족)
+function availableAwakening(g){
+  const awk=AWAKENINGS.find(a=> a.hero===g.hero.n && !g._awkTaken?.[a.id]);
+  if(!awk) return null;
+  // 해당 무장의 진화를 먼저 마쳤어야 함
+  const evoDone=EVOLUTIONS.some(e=> e.hero===g.hero.n && g._evoTaken?.[e.id]);
+  if(!evoDone) return null;
+  for(const [k,v] of Object.entries(awk.req)){ if((g.upLevels[k]||0) < v) return null; }
+  return awk;
+}
+
+/* =========================================================
+   유물(遺物) — 보스 처치 시 보물상자로 획득하는 강력한 패시브.
+   판 내내 유지. 중복 획득 방지.
+   ========================================================= */
+const RELICS=[
+  { id:'r_seal',   ic:'🗿', name:'전국옥새', d:'모든 대미지 +25%', apply:s=>{ s.dmgMul*=1.25; } },
+  { id:'r_horse',  ic:'🐴', name:'적토마', d:'이동속도 +30% · 필살 충전 +20%', apply:s=>{ s.spdMul+=0.30; s.ultRate*=1.20; } },
+  { id:'r_armor',  ic:'🛡️', name:'백은개', d:'최대 체력 +120 · 즉시 완충', apply:s=>{ s.maxHp+=120; s.hp=s.maxHp; } },
+  { id:'r_wine',   ic:'🍶', name:'영웅주', d:'초당 체력 +3 · 흡혈 +4%', apply:s=>{ s.regen+=3; s.vamp+=0.04; } },
+  { id:'r_blade',  ic:'⚔️', name:'의천검', d:'공격속도 +20% · 급소 +20%', apply:s=>{ s.rateMul*=0.80; s.crit+=0.20; } },
+  { id:'r_scroll', ic:'📜', name:'병법서', d:'기술 재사용 -25% · 범위 +20%', apply:s=>{ s.cdrMul*=0.75; s.rangeMul+=0.20; } },
+  { id:'r_bow',    ic:'🏹', name:'철태궁', d:'관통 +3 · 대미지 +15%', apply:s=>{ s.pierce+=3; s.dmgMul*=1.15; } },
+  { id:'r_drum',   ic:'🥁', name:'전고', d:'모든 능력 소폭↑ (공·속·범위·체력)', apply:s=>{ s.dmgMul*=1.12; s.rateMul*=0.92; s.rangeMul+=0.10; s.maxHp+=40; s.hp=Math.min(s.maxHp,s.hp+40); } },
+];
+// 아직 획득하지 않은 유물 중 랜덤 1개
+function rollRelic(g){
+  const owned=g.relics||{};
+  const pool=RELICS.filter(r=>!owned[r.id]);
+  if(pool.length===0) return null;
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+
+/* =========================================================
    무장 그림 로딩 — assets/<slug>.png (투명 PNG, 무장만)
    그림이 있으면 선택화면·전투에서 사용, 없으면 코드 도트로 대체
    ========================================================= */
@@ -1032,7 +1129,7 @@ function startGame(heroIdx){
     level:1, xp:0, xpNext:4, kills:0, time:0, lastMilestone:0,
     ultCharge:0, ultMax:100, ultReady:false,
     s1cd:0, s2cd:0, buffInvul:0, buffAtk:0, buffSpd:0,
-    upLevels:{}, _paused:false, evo:{}, _evoTaken:{},
+    upLevels:{}, _paused:false, evo:{}, _evoTaken:{}, awk:{}, _awkTaken:{}, relics:{},
     enemies:[], projectiles:[], eProjectiles:[], orbs:[], particles:[], damageTexts:[], slashes:[], allies:[],
     eventTimer:12,
     wpnTimer:0, spawnTimer:0, gameOver:false, won:false,
@@ -1739,15 +1836,17 @@ function hitEnemy(e,dmg,forceCrit){
   if(isCrit && !e.dead) critEffect(e);
   if(e.hp<=0 && !e.dead){
     e.dead=true; e.deathAge=0; g.kills++;
+    // 타격감: 처치 순간 미세 히트스톱(잡몹은 짧게, 크리 처치는 조금 더)
+    if(!e.lord){ FX.stop(isCrit?0.045:0.022); FX.shake(isCrit?1.6:0.7); }
     // 콤보 카운터
     g.combo=(g.combo||0)+1; g.comboT=2.2;   // 2.2초 내 다음 처치 시 유지
     if(g.combo>=5) showCombo(g.combo);
     if(g.combo>(g.maxCombo||0)) g.maxCombo=g.combo;
     if(!e.lord) g.chapterKills++;   // 잡병만 진행도에 카운트
     g.orbs.push({x:e.x,y:e.y,v:e.xpv,dead:false});
-    const pc=e.lord?40:(e.kind==='cav'?7:6);
-    for(let i=0;i<pc;i++){ const a=Math.random()*Math.PI*2, sp=40+Math.random()*140;
-      g.particles.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.4+Math.random()*0.4,col:e.col,r:e.lord?6:3}); }
+    const pc=e.lord?40:(e.kind==='cav'?10:8);
+    for(let i=0;i<pc;i++){ const a=Math.random()*Math.PI*2, sp=50+Math.random()*180;
+      g.particles.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.4+Math.random()*0.45,col:(i%3===0)?'#fff':e.col,r:e.lord?6:(i%3===0?2.5:3.5)}); }
     g.ultCharge=Math.min(g.ultMax, g.ultCharge+(e.lord?40:(e.kind==='cav'?2.4:1.6))*g.ultRate);
     if(g.ultCharge>=g.ultMax && !g.ultReady){ g.ultReady=true; toast('🐉 필살기 준비! (우하단 버튼)'); vib([20,40,20]); }
     if(g.vamp>0 && Math.random()<g.vamp) g.hp=Math.min(g.maxHp,g.hp+5);
@@ -1793,8 +1892,40 @@ function bossDefeated(e){
   clearTimeout(window._bossT);
   window._bossT=setTimeout(()=>{
     if(e.isFinal){ winGame(); }
-    else { stageClear(); }
+    else { openRelicChest(); }
   }, 1500);
+}
+function openRelicChest(){
+  const g=G; g._paused=true;
+  const relic=rollRelic(g);
+  // 남은 유물이 없으면 상자 생략, 바로 스테이지 클리어
+  if(!relic){ stageClear(); return; }
+  const scr=$('relicScreen');
+  const chest=$('relicChest'), card=$('relicCard'), tap=$('relicTap');
+  chest.style.display='block'; card.style.display='none';
+  tap.textContent='상자를 눌러 개봉';
+  let opened=false;
+  const openFn=()=>{
+    if(!opened){
+      // 1탭: 개봉
+      opened=true;
+      g.relics[relic.id]=true; relic.apply(g);
+      SFX.fanfare(); vib([40,30,80]);
+      chest.style.display='none';
+      $('relicIc').textContent=relic.ic;
+      $('relicName').textContent=relic.name;
+      $('relicDesc').textContent=relic.d;
+      card.style.display='block';
+      tap.textContent='화면을 눌러 진군';
+    } else {
+      // 2탭: 닫고 스테이지 클리어로
+      scr.classList.remove('on');
+      scr.removeEventListener('pointerdown', openFn);
+      stageClear();
+    }
+  };
+  scr.addEventListener('pointerdown', openFn);
+  scr.classList.add('on');
 }
 function stageClear(){
   const g=G;
@@ -1827,7 +1958,15 @@ function rollUpRarity(){ const total=Object.values(RAR_W).reduce((a,b)=>a+b,0); 
 function openLevelUp(){
   const g=G; g._paused=true;
   const row=$('upgradeRow'); row.innerHTML='';
-  // 진화 가능하면 특별 진화 선택지 (황금 카드) 우선 제시
+  // 각성 가능하면 최우선 제시 (붉은 각성 카드)
+  const awk=availableAwakening(g);
+  if(awk){
+    const c=document.createElement('div'); c.className='up-card awk-card';
+    c.innerHTML=`<div class="up-lv" style="color:#ff7a4a">★ 각성 ★</div>
+      <div class="up-ic">${awk.ic}</div><div class="up-t" style="color:#ffb060">${awk.name}</div><div class="up-d">${awk.d}</div>`;
+    c.onclick=()=>takeAwakening(awk); row.appendChild(c);
+  }
+  // 진화 가능하면 특별 진화 선택지 (황금 카드) 제시
   const evo=availableEvolution(g);
   if(evo){
     const c=document.createElement('div'); c.className='up-card evo-card';
@@ -1837,12 +1976,13 @@ function openLevelUp(){
   }
   const avail=UPGRADES.filter(u=>(g.upLevels[u.id]||0)<u.max);
   const picks=[]; const pool=[...avail];
-  const nUp = evo?2:3;   // 진화 나오면 일반 2개, 아니면 3개
+  const special=(awk?1:0)+(evo?1:0);
+  const nUp = Math.max(1, 3-special);   // 특수 카드 수만큼 일반 카드 감소(최소 1)
   for(let i=0;i<nUp && pool.length>0;i++){
     let rar=rollUpRarity(); let cand=pool.filter(u=>u.rar===rar); if(cand.length===0) cand=pool;
     const u=cand[Math.floor(Math.random()*cand.length)]; picks.push(u); pool.splice(pool.indexOf(u),1);
   }
-  if(picks.length===0 && !evo){ g.hp=Math.min(g.maxHp,g.hp+40); g._paused=false; return; }
+  if(picks.length===0 && !evo && !awk){ g.hp=Math.min(g.maxHp,g.hp+40); g._paused=false; return; }
   picks.forEach(u=>{
     const lv=(g.upLevels[u.id]||0);
     const c=document.createElement('div'); c.className='up-card rar-'+u.rar;
@@ -1850,13 +1990,19 @@ function openLevelUp(){
       <div class="up-ic">${u.ic}</div><div class="up-t">${u.t}</div><div class="up-d">${u.d}</div>`;
     c.onclick=()=>takeUpgrade(u); row.appendChild(c);
   });
-  $('lvlHead').textContent=evo?'무기 진화 가능!':'LEVEL '+g.level; show('levelupScreen'); lastT=performance.now();
+  $('lvlHead').textContent=awk?'각성 가능!':(evo?'무기 진화 가능!':'LEVEL '+g.level); show('levelupScreen'); lastT=performance.now();
 }
 function takeUpgrade(u){ const g=G; g.upLevels[u.id]=(g.upLevels[u.id]||0)+1; u.eff(g); g._paused=false; show(null); lastT=performance.now(); }
 function takeEvolution(evo){
   const g=G; g._evoTaken[evo.id]=true; evo.apply(g);
   SFX.fanfare(); FX.impactHeavy();
   skillFxName(evo.name+' 진화!', '#ffd050');
+  g._paused=false; show(null); lastT=performance.now();
+}
+function takeAwakening(awk){
+  const g=G; g._awkTaken[awk.id]=true; awk.apply(g);
+  SFX.fanfare(); FX.impactUltStart();
+  skillFxName(awk.name+' 각성!!', '#ff8040');
   g._paused=false; show(null); lastT=performance.now();
 }
 
