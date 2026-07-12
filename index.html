@@ -147,6 +147,10 @@
   .up-card .up-lv{ position:absolute; top:9px; right:11px; font-size:11px; font-weight:800; color:#9a8666; }
   .up-card.rar-r{ border-color:#4a9fe8; }
   .up-card.rar-e{ border-color:#c07ae8; box-shadow:0 0 16px rgba(192,122,232,.3); }
+  .up-card.evo-card{ border-color:#ffd050; border-width:3px;
+    background:linear-gradient(160deg, rgba(60,45,20,.97), rgba(30,22,10,.97));
+    box-shadow:0 0 26px rgba(255,208,80,.5); animation:evoGlow 1.2s ease-in-out infinite; }
+  @keyframes evoGlow{ 0%,100%{box-shadow:0 0 20px rgba(255,208,80,.4)} 50%{box-shadow:0 0 34px rgba(255,208,80,.7)} }
 
   /* 결과 */
   .result-title{ font-size:60px; font-weight:900; letter-spacing:6px; }
@@ -690,6 +694,42 @@ const UPGRADES=[
 const RAR_W={c:64,r:28,e:8};
 
 /* =========================================================
+   무기 진화 — 조건(특정 강화 레벨) 충족 시 해금되는 무장 시그니처
+   진화하면 evoFlags에 표시되어 공격/필살기가 강화됨
+   ========================================================= */
+const EVOLUTIONS=[
+  { id:'evo_guanyu', hero:'관우', name:'적룡언월', ic:'🐲', d:'기본공격이 전방 화염 참격으로 진화',
+    req:{dmg:4, range:2}, apply:s=>{ s.evo.guanyu=true; } },
+  { id:'evo_zhaoyun', hero:'조운', name:'칠성용담', ic:'🌟', d:'창이 관통+분열 (2갈래로 갈라짐)',
+    req:{dmg:3, pierce:1}, apply:s=>{ s.evo.zhaoyun=true; } },
+  { id:'evo_zhangfei', hero:'장비', name:'만인지적', ic:'🐯', d:'기본공격 넉백이 광역 충격파로 진화',
+    req:{dmg:4, hp:3}, apply:s=>{ s.evo.zhangfei=true; } },
+  { id:'evo_lubu', hero:'여포', name:'천하무쌍', ic:'🀄', d:'회전 범위 대폭↑ + 크리티컬 상시',
+    req:{dmg:4, rate:3}, apply:s=>{ s.evo.lubu=true; } },
+  { id:'evo_huangzhong', hero:'황충', name:'백보천양', ic:'🎯', d:'화살 5발 + 전탄 관통',
+    req:{dmg:3, range:2}, apply:s=>{ s.evo.huangzhong=true; } },
+  { id:'evo_taishici', hero:'태사자', name:'쌍극난무', ic:'🌀', d:'2연격이 4연격으로 진화',
+    req:{rate:3, dmg:2}, apply:s=>{ s.evo.taishici=true; } },
+  { id:'evo_xiahoudun', hero:'하후돈', name:'발안강격', ic:'👁️', d:'기본공격에 관통 참격 추가',
+    req:{dmg:4, cdr:2}, apply:s=>{ s.evo.xiahoudun=true; } },
+  { id:'evo_zhangliao', hero:'장료', name:'소요진격', ic:'🌊', d:'공격이 전방 돌진 관통으로 진화',
+    req:{dmg:3, spd:2}, apply:s=>{ s.evo.zhangliao=true; } },
+  { id:'evo_xuchu', hero:'허저', name:'광호격노', ic:'💪', d:'대도 범위·넉백 대폭↑',
+    req:{dmg:4, hp:3}, apply:s=>{ s.evo.xuchu=true; } },
+  { id:'evo_sunce', hero:'손책', name:'소패왕패', ic:'⚡', d:'2연격 + 파동 발사',
+    req:{rate:3, dmg:2}, apply:s=>{ s.evo.sunce=true; } },
+  { id:'evo_ganning', hero:'감녕', name:'금범연사', ic:'🏹', d:'강궁 4발 연사 + 관통',
+    req:{dmg:3, rate:2}, apply:s=>{ s.evo.ganning=true; } },
+];
+// 진화 조건 충족 여부 (아직 진화 안 했고 조건 만족)
+function availableEvolution(g){
+  const evo=EVOLUTIONS.find(e=> e.hero===g.hero.n && !g._evoTaken?.[e.id]);
+  if(!evo) return null;
+  for(const [k,v] of Object.entries(evo.req)){ if((g.upLevels[k]||0) < v) return null; }
+  return evo;
+}
+
+/* =========================================================
    무장 그림 로딩 — assets/<slug>.png (투명 PNG, 무장만)
    그림이 있으면 선택화면·전투에서 사용, 없으면 코드 도트로 대체
    ========================================================= */
@@ -863,7 +903,7 @@ function startGame(heroIdx){
     level:1, xp:0, xpNext:4, kills:0, time:0, lastMilestone:0,
     ultCharge:0, ultMax:100, ultReady:false,
     s1cd:0, s2cd:0, buffInvul:0, buffAtk:0, buffSpd:0,
-    upLevels:{}, _paused:false,
+    upLevels:{}, _paused:false, evo:{}, _evoTaken:{},
     enemies:[], projectiles:[], eProjectiles:[], orbs:[], particles:[], damageTexts:[], slashes:[],
     wpnTimer:0, spawnTimer:0, gameOver:false, won:false,
     swingT:0, swingDur:0.24, swingDir:0, swingType:'slash',
@@ -1291,42 +1331,67 @@ function aimDir(){
   return G.facing>0?0:Math.PI;
 }
 function fireWeapon(){
-  const g=G, w=g.hero.wpn, hn=g.hero.n;
+  const g=G, w=g.hero.wpn, hn=g.hero.n, ev=g.evo||{};
   const atkBuff=g.buffAtk>0?1.5:1;
-  const dmg=w.dmg*g.dmgMul*atkBuff;
-  const range=w.range*g.rangeMul;
+  let dmg=w.dmg*g.dmgMul*atkBuff;
+  let range=w.range*g.rangeMul;
   SFX.hit();  // 타격음
   if(w.type==='spin'){
     // 여포는 초광역 회전, 그 외 표준
-    const rMul = (hn==='여포')?1.3:(hn==='허저'?1.15:1.0);
-    g.slashes.push({type:'spin', cx:g.px,cy:g.py, range:range*rMul, dmg, dir:0, half:Math.PI, age:0, dur:0.22, hitSet:new Set(), fx:{type:'spin',range:range*rMul}});
+    let rMul = (hn==='여포')?1.3:(hn==='허저'?1.15:1.0);
+    // 진화: 여포 천하무쌍(범위+크리), 허저 광호격노(범위+넉백), 관우 적룡언월(화염참격)
+    let knock=0, crit=false, col=null;
+    if(hn==='여포' && ev.lubu){ rMul=1.7; crit=true; }
+    if(hn==='허저' && ev.xuchu){ rMul=1.5; knock=20; }
+    if(hn==='관우' && ev.guanyu){ rMul=1.35; dmg*=1.4; col='#ff6a3a'; }
+    const sl={type:'spin', cx:g.px,cy:g.py, range:range*rMul, dmg, dir:0, half:Math.PI, age:0, dur:0.22, hitSet:new Set(), crit, knock, fx:{type:'spin',range:range*rMul,col}};
+    g.slashes.push(sl);
+    // 관우 진화: 전방 화염 참격 추가 발사
+    if(hn==='관우' && ev.guanyu){ const dir=aimDir();
+      shootProj(dir,600,dmg*1.2,range*2.2,4+g.pierce,'#ff7a3a',7); }
     triggerSwing('spin', 0);
   } else if(w.type==='cone'){
     const dir=aimDir();
-    if(hn==='태사자' || hn==='손책'){
-      // 쌍수 무장: 2연격 (약간 시차)
-      g.slashes.push({type:'cone', cx:g.px,cy:g.py, range, dmg:dmg*0.6, dir, half:Math.PI*0.42, age:0, dur:0.14, hitSet:new Set(), fx:{type:'cone',range,dir}});
-      setTimeout(()=>{ if(G) G.slashes.push({type:'cone', cx:G.px,cy:G.py, range, dmg:dmg*0.6, dir, half:Math.PI*0.42, age:0, dur:0.14, hitSet:new Set(), fx:{type:'cone',range,dir}}); }, 90);
+    let hits = ((hn==='태사자'||hn==='손책'))?2:1;
+    // 진화: 태사자 4연격, 손책 파동, 하후돈 관통, 장료 돌진
+    if(hn==='태사자' && ev.taishici) hits=4;
+    if(hn==='손책' && ev.sunce) hits=3;
+    if(hits>1){
+      const per=dmg*(hits===2?0.6:0.45);
+      for(let k=0;k<hits;k++) setTimeout(()=>{ if(G){ const d2=aimDir(); G.slashes.push({type:'cone', cx:G.px,cy:G.py, range, dmg:per, dir:d2, half:Math.PI*0.42, age:0, dur:0.13, hitSet:new Set(), fx:{type:'cone',range,dir:d2}}); } }, k*75);
+      if(hn==='손책' && ev.sunce){ shootProj(dir,640,dmg*0.8,range*1.8,3,'#ff9a4a',6); } // 파동
     } else if(hn==='장비'){
-      // 장비: 넓고 강한 일격 + 넉백
       g.slashes.push({type:'cone', cx:g.px,cy:g.py, range, dmg, dir, half:Math.PI*0.55, age:0, dur:0.2, hitSet:new Set(), knock:12, fx:{type:'cone',range,dir}});
+      // 장비 진화: 광역 충격파
+      if(ev.zhangfei){ g.slashes.push({type:'spin',cx:g.px,cy:g.py,range:range*1.4,dmg:dmg*0.7,dir:0,half:Math.PI,age:0,dur:0.2,hitSet:new Set(),knock:20,fx:{type:'spin',range:range*1.4}}); }
     } else {
-      g.slashes.push({type:'cone', cx:g.px,cy:g.py, range, dmg, dir, half:Math.PI*0.42, age:0, dur:0.18, hitSet:new Set(), fx:{type:'cone',range,dir}});
+      const half = (hn==='허저')?Math.PI*0.5:Math.PI*0.42;
+      g.slashes.push({type:'cone', cx:g.px,cy:g.py, range, dmg, dir, half, age:0, dur:0.18, hitSet:new Set(), fx:{type:'cone',range,dir}});
+      // 하후돈 진화: 관통 참격 / 장료 진화: 돌진 관통
+      if(hn==='하후돈' && ev.xiahoudun){ shootProj(dir,560,dmg*0.9,range*2.4,6,'#7ab0ff',6); }
+      if(hn==='장료' && ev.zhangliao){ shootProj(dir,640,dmg*1.1,range*2.6,8,'#7ab0ff',6); }
     }
     triggerSwing('slash', dir);
   } else if(w.type==='pierce'){
     const dir=aimDir();
     shootProj(dir,520,dmg,range,8+g.pierce,'#e8e0c0',5);
+    // 조운 진화: 2갈래 분열
+    if(hn==='조운' && ev.zhaoyun){
+      shootProj(dir+0.12,520,dmg*0.8,range,8+g.pierce,'#8ad0ff',5);
+      shootProj(dir-0.12,520,dmg*0.8,range,8+g.pierce,'#8ad0ff',5);
+    }
     triggerSwing('thrust', dir);
   } else if(w.type==='shoot'){
     const dir=aimDir();
     if(hn==='감녕'){
-      // 감녕: 2발 좁은 부채꼴 + 빠른 탄속 (해적 강궁)
-      for(let i=0;i<2;i++){ const off=(i-0.5)*0.16; shootProj(dir+off,700,dmg,range,1+g.pierce,'#ffb84a',5); }
+      let n = ev.ganning?4:2;   // 진화: 4발
+      const pierce = ev.ganning?(4+g.pierce):(1+g.pierce);
+      for(let i=0;i<n;i++){ const off=(i-(n-1)/2)*0.14; shootProj(dir+off,700,dmg,range,pierce,'#ffb84a',5); }
     } else {
-      // 황충: 3발 부채꼴 (명궁)
-      const arrows=3, spread=0.28;
-      for(let i=0;i<arrows;i++){ const off=(i-(arrows-1)/2)*spread; shootProj(dir+off,620,dmg,range,1+g.pierce,'#ffe680',4); }
+      let arrows = (hn==='황충'&&ev.huangzhong)?5:3;   // 황충 진화: 5발
+      const pierce = (hn==='황충'&&ev.huangzhong)?(4+g.pierce):(1+g.pierce);
+      const spread=0.26;
+      for(let i=0;i<arrows;i++){ const off=(i-(arrows-1)/2)*spread; shootProj(dir+off,620,dmg,range,pierce,'#ffe680',4); }
     }
     triggerSwing('bow', dir);
   }
@@ -1496,14 +1561,23 @@ function rollUpRarity(){ const total=Object.values(RAR_W).reduce((a,b)=>a+b,0); 
   for(const [k,w] of Object.entries(RAR_W)){ r-=w; if(r<=0) return k; } return 'c'; }
 function openLevelUp(){
   const g=G; g._paused=true;
+  const row=$('upgradeRow'); row.innerHTML='';
+  // 진화 가능하면 특별 진화 선택지 (황금 카드) 우선 제시
+  const evo=availableEvolution(g);
+  if(evo){
+    const c=document.createElement('div'); c.className='up-card evo-card';
+    c.innerHTML=`<div class="up-lv" style="color:#ffd050">✦ 무기 진화 ✦</div>
+      <div class="up-ic">${evo.ic}</div><div class="up-t" style="color:#ffe680">${evo.name}</div><div class="up-d">${evo.d}</div>`;
+    c.onclick=()=>takeEvolution(evo); row.appendChild(c);
+  }
   const avail=UPGRADES.filter(u=>(g.upLevels[u.id]||0)<u.max);
   const picks=[]; const pool=[...avail];
-  for(let i=0;i<3 && pool.length>0;i++){
+  const nUp = evo?2:3;   // 진화 나오면 일반 2개, 아니면 3개
+  for(let i=0;i<nUp && pool.length>0;i++){
     let rar=rollUpRarity(); let cand=pool.filter(u=>u.rar===rar); if(cand.length===0) cand=pool;
     const u=cand[Math.floor(Math.random()*cand.length)]; picks.push(u); pool.splice(pool.indexOf(u),1);
   }
-  const row=$('upgradeRow'); row.innerHTML='';
-  if(picks.length===0){ g.hp=Math.min(g.maxHp,g.hp+40); g._paused=false; return; }
+  if(picks.length===0 && !evo){ g.hp=Math.min(g.maxHp,g.hp+40); g._paused=false; return; }
   picks.forEach(u=>{
     const lv=(g.upLevels[u.id]||0);
     const c=document.createElement('div'); c.className='up-card rar-'+u.rar;
@@ -1511,9 +1585,15 @@ function openLevelUp(){
       <div class="up-ic">${u.ic}</div><div class="up-t">${u.t}</div><div class="up-d">${u.d}</div>`;
     c.onclick=()=>takeUpgrade(u); row.appendChild(c);
   });
-  $('lvlHead').textContent='LEVEL '+g.level; show('levelupScreen'); lastT=performance.now();
+  $('lvlHead').textContent=evo?'무기 진화 가능!':'LEVEL '+g.level; show('levelupScreen'); lastT=performance.now();
 }
 function takeUpgrade(u){ const g=G; g.upLevels[u.id]=(g.upLevels[u.id]||0)+1; u.eff(g); g._paused=false; show(null); lastT=performance.now(); }
+function takeEvolution(evo){
+  const g=G; g._evoTaken[evo.id]=true; evo.apply(g);
+  SFX.fanfare(); FX.impactHeavy();
+  skillFxName(evo.name+' 진화!', '#ffd050');
+  g._paused=false; show(null); lastT=performance.now();
+}
 
 /* =========================================================
    필살기
