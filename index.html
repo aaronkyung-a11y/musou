@@ -1250,8 +1250,19 @@ function render(){
     ctx.restore();
   }
   // 아군 투사체
-  for(const p of g.projectiles){ ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fillStyle=p.col; ctx.fill();
-    ctx.strokeStyle='rgba(255,255,255,.4)'; ctx.lineWidth=1; ctx.stroke(); }
+  for(const p of g.projectiles){
+    const sp=Math.hypot(p.vx,p.vy)||1; const ang=Math.atan2(p.vy,p.vx);
+    ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(ang);
+    // 꼬리 트레일
+    ctx.strokeStyle=p.col; ctx.globalAlpha=0.5; ctx.lineWidth=p.r*1.2;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-p.r*4,0); ctx.stroke();
+    ctx.globalAlpha=1;
+    // 화살촉 (앞이 뾰족한 마름모)
+    ctx.fillStyle=p.col; ctx.beginPath();
+    ctx.moveTo(p.r*2.2,0); ctx.lineTo(-p.r*0.6,p.r); ctx.lineTo(-p.r*1.2,0); ctx.lineTo(-p.r*0.6,-p.r); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.lineWidth=1; ctx.stroke();
+    ctx.restore();
+  }
   // 적 투사체
   for(const p of g.eProjectiles){ ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fillStyle='#ff6a4a'; ctx.fill(); }
 
@@ -1368,7 +1379,7 @@ function drawHeroMounted(){
   const g=G, h=g.hero, col=FAC_COLOR[h.f];
   ctx.save();
   const face=g.facing;
-  ctx.translate(g.px,g.py); ctx.scale(face,1);
+  ctx.translate(g.px,g.py); ctx.scale(-face,1);   // 말이 왼쪽 향해 그려져 있어 -face로 이동방향과 일치
   const bob=Math.sin(g.animTick*10)*2.5;
   // 그림자
   ctx.globalAlpha=1;
