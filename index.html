@@ -119,6 +119,24 @@
     opacity:0; white-space:nowrap; letter-spacing:4px; }
   #fxName.go{ animation:fxNm 1.1s ease-out; }
   @keyframes fxNm{ 0%{opacity:0;transform:translate(-50%,-50%) scale(2)} 25%{opacity:1;transform:translate(-50%,-50%) scale(1)} 75%{opacity:1} 100%{opacity:0;transform:translate(-50%,-50%) scale(1.1)} }
+
+  /* 100킬 마일스톤 대형 메시지 */
+  #bigMsg{ position:absolute; top:42%; left:50%; transform:translate(-50%,-50%); z-index:18; pointer-events:none;
+    text-align:center; opacity:0; }
+  #bigMsg.go{ animation:bigMsgAnim 1.6s cubic-bezier(.2,.8,.2,1); }
+  #bigMsg .bm-sub{ font-size:22px; font-weight:800; color:#fff; letter-spacing:6px; margin-bottom:2px;
+    text-shadow:0 2px 8px #000; }
+  #bigMsg .bm-main{ font-size:72px; font-weight:900; letter-spacing:4px; white-space:nowrap;
+    background:linear-gradient(180deg,#fff2c0,#e8a53a 60%,#c0392b);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 0 40px rgba(232,120,50,.7); -webkit-text-stroke:2px rgba(80,20,10,.4); }
+  @keyframes bigMsgAnim{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(2.4) rotate(-4deg)}
+    18%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}
+    30%{transform:translate(-50%,-50%) scale(1.08)}
+    75%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1)}
+  }
   /* 크리티컬 비네트 */
   #critVig{ position:absolute; inset:0; z-index:14; pointer-events:none; opacity:0;
     box-shadow:inset 0 0 120px 40px rgba(200,40,20,.6); }
@@ -197,6 +215,7 @@
   <div id="fxFlash"></div>
   <div id="critVig"></div>
   <div id="fxName"></div>
+  <div id="bigMsg"><div class="bm-sub" id="bmSub"></div><div class="bm-main" id="bmMain"></div></div>
 
   <div id="bossIntro"><div class="bi-band" id="biBand"></div></div>
 
@@ -393,10 +412,11 @@ function startGame(heroIdx){
   const h=HEROES[heroIdx];
   G={
     hero:h, px:0,py:0, vx:0,vy:0, facing:1,
-    hp:100+h.ldr, maxHp:100+h.ldr,
-    dmgMul:1, rateMul:1, rangeMul:1, spdMul:1,
-    regen:0, ultRate:1, pickupR:120, pierce:0, vamp:0, crit:0, cdrMul:1,
-    level:1, xp:0, xpNext:4, kills:0, time:0,
+    worldW:2600, worldH:1800,   // 넓은 전장
+    hp:Math.round((100+h.ldr)*1.5), maxHp:Math.round((100+h.ldr)*1.5),  // 체력 1.5배
+    dmgMul:1.4, rateMul:0.9, rangeMul:1.35, spdMul:1.15,   // 강화된 시작치 (진삼국무쌍 감)
+    regen:0, ultRate:1, pickupR:150, pierce:1, vamp:0, crit:0.08, cdrMul:1,
+    level:1, xp:0, xpNext:4, kills:0, time:0, lastMilestone:0,
     ultCharge:0, ultMax:100, ultReady:false,
     s1cd:0, s2cd:0, buffInvul:0, buffAtk:0, buffSpd:0,
     upLevels:{}, _paused:false,
@@ -405,7 +425,7 @@ function startGame(heroIdx){
     swingT:0, swingDur:0.24, swingDir:0, swingType:'slash',
     nextLordAt:15, lordActive:false, animTick:0
   };
-  resize(); G.px=W/2; G.py=H/2;
+  resize(); G.px=G.worldW/2; G.py=G.worldH/2;
   timeScale=1; zoom=1; zoomTarget=1; camShake=0;
   $('hud').classList.add('on'); show(null);
   // 스킬 버튼 라벨 세팅
@@ -478,7 +498,7 @@ function update(dt){
   let spd=h.spd*60*g.spdMul*(g.buffSpd>0?1.8:1);
   g.px+=joyDx*spd*dt; g.py+=joyDy*spd*dt;
   if(joyDx!==0) g.facing=joyDx>0?1:-1;
-  g.px=Math.max(24,Math.min(W-24,g.px)); g.py=Math.max(24,Math.min(H-24,g.py));
+  g.px=Math.max(30,Math.min(g.worldW-30,g.px)); g.py=Math.max(30,Math.min(g.worldH-30,g.py));
 
   if(g.regen>0) g.hp=Math.min(g.maxHp,g.hp+g.regen*dt);
 
@@ -487,12 +507,12 @@ function update(dt){
     spawnLord();
   }
 
-  // 적 스폰 — 훨씬 많이
+  // 적 스폰 — 진삼국무쌍처럼 우글우글
   g.spawnTimer-=dt;
-  const spawnInterval=Math.max(0.06, 0.55 - g.time*0.0016);
-  if(g.spawnTimer<=0){
+  const spawnInterval=Math.max(0.04, 0.40 - g.time*0.0016);
+  if(g.spawnTimer<=0 && g.enemies.length<220){   // 최대 동시 220 (성능 상한)
     g.spawnTimer=spawnInterval;
-    const batch=2+Math.floor(g.time/22);
+    const batch=4+Math.floor(g.time/16);
     for(let i=0;i<batch;i++) spawnEnemy();
   }
 
@@ -506,12 +526,13 @@ function update(dt){
     if(e.dead) continue;
     const dx=g.px-e.x, dy=g.py-e.y; const d=Math.hypot(dx,dy)||1;
     if(e.kind==='archer'){
-      // 궁병: 일정 거리 유지 + 사격
-      const ideal=260;
+      // 화면에 보이는 사거리 (줌 고려). 이보다 멀면 못 쏘고 접근한다
+      const shootRange=Math.min(W,H)/zoom*0.42;
+      const ideal=shootRange*0.7;
       if(d<ideal-30){ e.x-=dx/d*e.spd*dt; e.y-=dy/d*e.spd*dt; }
-      else if(d>ideal+30){ e.x+=dx/d*e.spd*dt; e.y+=dy/d*e.spd*dt; }
+      else if(d>ideal+30){ e.x+=dx/d*e.spd*1.4*dt; e.y+=dy/d*e.spd*1.4*dt; } // 멀면 빠르게 접근
       e.shootCd-=dt;
-      if(e.shootCd<=0 && d<440){ e.shootCd=1.6+Math.random(); enemyShoot(e,dx/d,dy/d); }
+      if(e.shootCd<=0 && d<shootRange){ e.shootCd=2.0+Math.random()*1.2; enemyShoot(e,dx/d,dy/d); }
     } else {
       e.x+=dx/d*e.spd*dt; e.y+=dy/d*e.spd*dt;
     }
@@ -593,21 +614,25 @@ function knockback(e,dx,dy,f){ const d=Math.hypot(dx,dy)||1; e.x+=dx/d*f; e.y+=d
 let enemyIdSeq=0;
 function spawnEnemy(){
   const g=G;
-  const ang=Math.random()*Math.PI*2, rad=Math.max(W,H)*0.62;
-  const x=g.px+Math.cos(ang)*rad, y=g.py+Math.sin(ang)*rad;
+  // 화면(줌 반영) 가장자리 살짝 밖에서 스폰 → 화면 안으로 몰려옴
+  const viewR=Math.max(W,H)/zoom*0.62;
+  const ang=Math.random()*Math.PI*2, rad=viewR+40+Math.random()*80;
+  let x=g.px+Math.cos(ang)*rad, y=g.py+Math.sin(ang)*rad;
+  // 월드 밖이면 반대편으로 반사
+  x=Math.max(20,Math.min(g.worldW-20,x)); y=Math.max(20,Math.min(g.worldH-20,y));
   const tScale=1+g.time*0.012;
   const roll=Math.random();
   let kind='foot';
-  if(roll<0.22) kind='cav';       // 기병
-  else if(roll<0.42) kind='archer'; // 궁병
+  if(roll<0.22) kind='cav';
+  else if(roll<0.40) kind='archer';
   const facKeys=Object.keys(FAC_COLOR);
   const fac=facKeys[Math.floor(Math.random()*facKeys.length)];
   let hp,r,spd,dmg,xpv;
   if(kind==='cav'){ hp=16*tScale; r=13; spd=88+Math.random()*24; dmg=16; xpv=2; }
-  else if(kind==='archer'){ hp=12*tScale; r=12; spd=40+Math.random()*14; dmg=10; xpv=2; }
-  else { hp=14*tScale; r=12; spd=50+Math.random()*16; dmg=14; xpv=1; }
+  else if(kind==='archer'){ hp=12*tScale; r=12; spd=48+Math.random()*14; dmg=10; xpv=2; }
+  else { hp=14*tScale; r=12; spd=52+Math.random()*16; dmg=14; xpv=1; }
   g.enemies.push({ id:enemyIdSeq++, x,y, hp, maxHp:hp, r, spd, dmg, dead:false, deathAge:0,
-    col:FAC_COLOR[fac], kind, hitFlash:0, xpv, shootCd:1+Math.random(), stun:0, lord:false, animP:Math.random()*6 });
+    col:FAC_COLOR[fac], kind, hitFlash:0, xpv, shootCd:1.5+Math.random(), stun:0, lord:false, animP:Math.random()*6 });
 }
 function spawnLord(){
   const g=G; g.lordActive=true; g._paused=true;
@@ -630,7 +655,7 @@ function spawnLord(){
 
 function enemyShoot(e,nx,ny){
   const g=G;
-  g.eProjectiles.push({ x:e.x, y:e.y, vx:nx*300, vy:ny*300, dmg:e.dmg, life:2.2, dead:false });
+  g.eProjectiles.push({ x:e.x, y:e.y, vx:nx*230, vy:ny*230, dmg:e.dmg, life:3.0, dead:false });
 }
 
 /* =========================================================
@@ -707,7 +732,7 @@ function useSkill2(){
     case '여포': g.buffSpd=4; g.buffAtk=4; break;
     case '조운': case '태사자': { // 돌진
       const d=aimDir(); g.px+=Math.cos(d)*160; g.py+=Math.sin(d)*160;
-      g.px=Math.max(24,Math.min(W-24,g.px)); g.py=Math.max(24,Math.min(H-24,g.py));
+      g.px=Math.max(30,Math.min(g.worldW-30,g.px)); g.py=Math.max(30,Math.min(g.worldH-30,g.py));
       g.slashes.push({type:'spin',cx:g.px,cy:g.py,range:120,dmg:h.wpn.dmg*g.dmgMul*1.5,dir:0,half:Math.PI,age:0,dur:0.2,hitSet:new Set(),knock:20,fx:{type:'spin',range:120}});
       break; }
     case '장비': case '황충': { // 주변 기절/넉백
@@ -746,7 +771,28 @@ function hitEnemy(e,dmg,forceCrit){
     if(g.ultCharge>=g.ultMax) g.ultReady=true;
     if(g.vamp>0 && Math.random()<g.vamp) g.hp=Math.min(g.maxHp,g.hp+5);
     if(e.lord){ lordDefeated(e); }
+    // 100명 단위 마일스톤
+    if(Math.floor(g.kills/100) > g.lastMilestone){
+      g.lastMilestone=Math.floor(g.kills/100);
+      killMilestone(g.lastMilestone*100);
+    }
   }
+}
+/* 100킬 마일스톤 — 강렬한 연출 */
+const MILESTONE_MSG={
+  1:"백인참(百人斬)!", 2:"이백 격파!", 3:"삼백 돌파!!", 4:"사백 유린!!",
+  5:"오백 무쌍!!!", 6:"육백 대살육!!!", 7:"칠백…!", 8:"팔백…!!",
+  9:"구백…!!!", 10:"천인참(千人斬)!!!"
+};
+function killMilestone(n){
+  const msg = MILESTONE_MSG[n/100] || (n+" 격파!!!");
+  // 화면 연출: 슬로우 + 줌 아웃(전장을 보여줌) + 강한 흔들림 + 플래시
+  timeScale=0.28; zoomTarget=0.85; camShake=2.4;
+  const fl=$('fxFlash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
+  bigMsg(msg, n);
+  vib([80,50,120,50,80]);
+  clearTimeout(window._msT);
+  window._msT=setTimeout(()=>{ timeScale=1; zoomTarget=1; }, 900);
 }
 function critEffect(e){
   // 순간 슬로우모션 + 줌인 + 붉은 비네트 + 진동
@@ -820,6 +866,12 @@ function skillFxName(txt,color){
   const nm=$('fxName'); nm.style.color=color; nm.textContent=txt;
   nm.classList.remove('go'); void nm.offsetWidth; nm.classList.add('go');
 }
+function bigMsg(main, kills){
+  const el=$('bigMsg');
+  $('bmSub').textContent='☠ '+kills;
+  $('bmMain').textContent=main;
+  el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+}
 
 /* =========================================================
    적장 등장 연출
@@ -849,7 +901,12 @@ function render(){
   ctx.save();
   // 카메라: 플레이어 중심 줌 + 흔들림
   const shx=(Math.random()-0.5)*camShake*10, shy=(Math.random()-0.5)*camShake*10;
-  ctx.translate(W/2+shx, H/2+shy); ctx.scale(zoom,zoom); ctx.translate(-g.px,-g.py);
+  // 카메라 중심 = 플레이어, 단 월드 가장자리에선 검은 영역 안 보이게 클램프
+  const halfW=W/(2*zoom), halfH=H/(2*zoom);
+  let camX=g.px, camY=g.py;
+  if(g.worldW>halfW*2) camX=Math.max(halfW, Math.min(g.worldW-halfW, camX)); else camX=g.worldW/2;
+  if(g.worldH>halfH*2) camY=Math.max(halfH, Math.min(g.worldH-halfH, camY)); else camY=g.worldH/2;
+  ctx.translate(W/2+shx, H/2+shy); ctx.scale(zoom,zoom); ctx.translate(-camX,-camY);
 
   drawGround();
 
