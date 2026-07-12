@@ -346,7 +346,32 @@ const HEROES=[
     wpn:{name:"쌍철극", type:"cone", dmg:24, range:115, rate:44},
     s1:{name:"연격", ic:"⚔️", cd:4, desc:"전방 빠른 연속타"},
     s2:{name:"맹진", ic:"🐎", cd:8, desc:"돌진하며 관통"},
-    ult:{name:"쌍극선풍", ic:"🌪️", desc:"회전하며 전방위 참격"} }
+    ult:{name:"쌍극선풍", ic:"🌪️", desc:"회전하며 전방위 참격"} },
+  { n:"하후돈", f:"위", mig:94, ldr:88, spd:2.3,
+    wpn:{name:"언월도", type:"spin", dmg:27, range:105, rate:50},
+    s1:{name:"발안", ic:"👁️", cd:5, desc:"분노의 광역 참격"},
+    s2:{name:"불굴", ic:"🛡️", cd:9, desc:"3초 무적+반격"},
+    ult:{name:"강렬일섬", ic:"⚔️", desc:"전방 광역 강타 폭발"} },
+  { n:"장료", f:"위", mig:95, ldr:92, spd:2.5,
+    wpn:{name:"장극", type:"cone", dmg:26, range:130, rate:46},
+    s1:{name:"돌격", ic:"🐎", cd:4, desc:"전방 돌진 관통"},
+    s2:{name:"위압", ic:"😤", cd:8, desc:"주변 적 기절"},
+    ult:{name:"소요진", ic:"🌊", desc:"팔백 기병의 돌파"} },
+  { n:"허저", f:"위", mig:96, ldr:72, spd:1.9,
+    wpn:{name:"대도", type:"cone", dmg:36, range:140, rate:64},
+    s1:{name:"괴력", ic:"💪", cd:5, desc:"전방 강타+넉백"},
+    s2:{name:"광전", ic:"🔥", cd:9, desc:"공격력 대폭↑"},
+    ult:{name:"호치난무", ic:"🐯", desc:"전방위 대회전 강타"} },
+  { n:"손책", f:"오", mig:95, ldr:89, spd:2.7,
+    wpn:{name:"고정도", type:"cone", dmg:23, range:120, rate:40},
+    s1:{name:"패왕격", ic:"⚡", cd:4, desc:"전방 고속 연속타"},
+    s2:{name:"질주", ic:"🏃", cd:8, desc:"순간이동 돌진"},
+    ult:{name:"소패왕", ic:"🀄", desc:"광역 연속 참격 폭발"} },
+  { n:"감녕", f:"오", mig:92, ldr:80, spd:2.6,
+    wpn:{name:"강궁", type:"shoot", dmg:21, range:340, rate:38},
+    s1:{name:"철삭", ic:"🎯", cd:4, desc:"강력 관통 사격"},
+    s2:{name:"금범", ic:"🏹", cd:9, desc:"부채꼴 다발 사격"},
+    ult:{name:"백기겁영", ic:"🌧️", desc:"화면 전체 화살비"} }
 ];
 
 /* 적 장수 — 등장 대사 */
@@ -1139,6 +1164,12 @@ function ultBurst(){
     case '여포':   ultLubu(base); break;
     case '황충':   ultHuangzhong(base); break;
     case '태사자': ultTaishici(base); break;
+    // 위/오 추가 무장 — 무기 특성에 맞는 필살기 재사용 (이름은 각자 고유)
+    case '하후돈': ultGuanyu(base, '강렬일섬!', '#5a9fff'); break;   // 도 → 전방 관통 참격
+    case '장료':   ultZhaoyun(base, '소요진!', '#5a9fff'); break;    // 창 → 다방향 돌진
+    case '허저':   ultZhangfei(base, '호치난무!!!', '#5a9fff'); break; // 대검 → 전체 강타
+    case '손책':   ultLubu(base, '소패왕!!!', '#ff7a4a'); break;     // 쌍검 → 연타
+    case '감녕':   ultHuangzhong(base, '백기겁영!!!', '#ff7a4a'); break; // 활 → 화살비
     default:       ultDefault(base);
   }
   updateHUD();
@@ -1152,7 +1183,7 @@ function ultParticles(n, col1, col2){
     g.particles.push({x:g.px,y:g.py,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.5+Math.random()*0.7,col:i%3?col1:col2,r:3+Math.random()*4}); }
 }
 // 관우 — 청룡참: 전방 거대 관통 참격 (조준 방향)
-function ultGuanyu(base){
+function ultGuanyu(base, fxName, fxCol){
   const g=G; const dir=aimDir();
   g.swingType='slash'; g.swingDir=dir; g.swingT=g.swingDur*2.2;
   // 전방 긴 부채꼴을 여러 번 관통
@@ -1168,12 +1199,12 @@ function ultGuanyu(base){
       camShake=2.5;
     }, k*130);
   }
-  skillFxName('청룡참!', '#5cd88a');
+  skillFxName(fxName||'청룡참!', fxCol||'#5cd88a');
 }
 // 조운 — 칠진돌파: 7방향 연속 돌진 난격
-function ultZhaoyun(base){
+function ultZhaoyun(base, fxName, fxCol){
   const g=G;
-  skillFxName('칠진돌파!', '#8ad0ff');
+  skillFxName(fxName||'칠진돌파!', fxCol||'#8ad0ff');
   for(let k=0;k<7;k++){
     setTimeout(()=>{ if(!G)return;
       const dir=(Math.PI*2/7)*k - Math.PI/2;
@@ -1187,9 +1218,9 @@ function ultZhaoyun(base){
   }
 }
 // 장비 — 당양대갈: 대갈일성, 전체 기절 + 강력 넉백
-function ultZhangfei(base){
+function ultZhangfei(base, fxName, fxCol){
   const g=G;
-  skillFxName('당양대갈!!!', '#ff7a4a');
+  skillFxName(fxName||'당양대갈!!!', fxCol||'#ff7a4a');
   // 확장하는 충격파 링 3겹
   for(let k=0;k<3;k++){
     g.slashes.push({type:'spin',cx:g.px,cy:g.py,range:200+k*160,dmg:0,dir:0,half:Math.PI,age:0,dur:0.5,hitSet:new Set(),fx:{type:'spin',range:200+k*160,big:true}});
@@ -1204,9 +1235,9 @@ function ultZhangfei(base){
   timeScale=0.25;
 }
 // 여포 — 무쌍난무: 초고속 회전 연타 (다단히트)
-function ultLubu(base){
+function ultLubu(base, fxName, fxCol){
   const g=G;
-  skillFxName('무쌍난무!!!', '#c9a0ff');
+  skillFxName(fxName||'무쌍난무!!!', fxCol||'#c9a0ff');
   let hits=0;
   const iv=setInterval(()=>{
     if(!G||G.gameOver||hits>=8){ clearInterval(iv); return; }
@@ -1220,9 +1251,9 @@ function ultLubu(base){
   }, 90);
 }
 // 황충 — 연노난사: 화살 폭우 (전 화면 낙하)
-function ultHuangzhong(base){
+function ultHuangzhong(base, fxName, fxCol){
   const g=G;
-  skillFxName('연노난사!!!', '#ffe680');
+  skillFxName(fxName||'연노난사!!!', fxCol||'#ffe680');
   const viewR=Math.max(W,H)/zoom*0.6;
   let waves=0;
   const iv=setInterval(()=>{
