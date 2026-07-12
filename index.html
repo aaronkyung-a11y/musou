@@ -444,11 +444,13 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v4.1";
-window.addEventListener('DOMContentLoaded', ()=>{
+const GAME_VER = "v4.2";
+function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
-});
+}
+if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', applyVersionTags); }
+else { applyVersionTags(); }
 
 /* =========================================================
    BGM — Web Audio 절차적 배경음악 (동양풍 5음계)
@@ -1069,7 +1071,7 @@ const FX = {
 const $=id=>document.getElementById(id);
 function vib(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
 function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on')); if(id)$(id).classList.add('on'); }
-function toTitle(){ endLoop(); $('hud').classList.remove('on'); show('titleScreen'); }
+function toTitle(){ endLoop(); hideCombo(); $('hud').classList.remove('on'); show('titleScreen'); }
 function showHelp(){
   alert("【 無雙記 · 무쌍기 】\n\n가로 모드 액션 로그라이크.\n\n▶ 이동\n화면 왼쪽 드래그 → 조이스틱. 주인공은 말을 탄다.\n\n▶ 기본공격\n자동으로 주기적으로 발동.\n\n▶ 기술 (우하단 버튼)\n파란 버튼=기술1, 붉은 버튼=기술2.\n쿨타임마다 재사용. 무장별로 효과가 다르다.\n\n▶ 필살기 (금색 버튼)\n처치로 게이지가 차면 발동. 화면을 쓸어버린다.\n\n▶ 적 병종\n🐎 기병(빠름) · 🏹 궁병(원거리 사격) · 보병.\n적 장수가 나타나면 이름과 대사가 뜬다.\n\n▶ 박진감\n크리티컬·필살기 명중 시 순간 슬로우모션 + 줌인.\n\n▶ 목표\n300초 생존.");
 }
@@ -2966,6 +2968,7 @@ function loseGame(){
 }
 function showResult(sub){
   const g=G;
+  hideCombo();   // 결과 화면에서 콤보 UI 제거 (잔상 버그 방지)
   // 전공(戰功) 계산: 처치 + 진행 장 보너스 + 승리 보너스
   const won = g.won || (g.chapter>=SCENARIO.length-1 && !g.enemies.some(e=>e.lord&&!e.dead) && $('resultTitle').textContent==='천하통일');
   const isWin = $('resultTitle').classList.contains('win');
