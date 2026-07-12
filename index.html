@@ -37,7 +37,7 @@
     display:flex; flex-direction:column; align-items:center; text-align:center; overflow:hidden; }
   .hero-card:active{ transform:scale(.96); }
   .hero-card:hover{ border-color:var(--gold); }
-  .hero-portrait{ width:64px; height:64px; margin:0 auto; flex:0 0 auto; }
+  .hero-portrait{ width:64px; height:64px; margin:0 auto; flex:0 0 auto; border-radius:50%; overflow:hidden; }
   .hero-portrait svg{ display:block; width:64px !important; height:64px !important; }
   .hp-nm{ font-size:17px; font-weight:900; margin-top:5px; }
   .hp-wpn{ font-size:12px; color:var(--gold); margin-top:3px; font-weight:700;
@@ -305,6 +305,21 @@ const UPGRADES=[
 const RAR_W={c:64,r:28,e:8};
 
 /* =========================================================
+   무장 그림 로딩 — assets/<slug>.png (투명 PNG, 무장만)
+   그림이 있으면 선택화면·전투에서 사용, 없으면 코드 도트로 대체
+   ========================================================= */
+const HERO_SLUG={ "관우":"guanyu","조운":"zhaoyun","장비":"zhangfei","여포":"lubu","황충":"huangzhong","태사자":"taishici" };
+const HERO_IMG={};        // name -> HTMLImageElement (로드 완료된 것만)
+function preloadHeroImages(){
+  for(const name in HERO_SLUG){
+    const img=new Image();
+    img.onload=()=>{ HERO_IMG[name]=img; };
+    img.onerror=()=>{ /* 그림 없으면 무시, 도트 사용 */ };
+    img.src='assets/'+HERO_SLUG[name]+'.png';
+  }
+}
+
+/* =========================================================
    캔버스 & 상태
    ========================================================= */
 const cv=document.getElementById('game'), ctx=cv.getContext('2d');
@@ -358,7 +373,10 @@ function goSelect(){
   const grid=$('heroGrid'); grid.innerHTML='';
   HEROES.forEach((h,i)=>{
     const c=document.createElement('div'); c.className='hero-card'; c.onclick=()=>startGame(i);
-    c.innerHTML=`<div class="hero-portrait">${heroSVG(h,64)}</div>
+    const portraitHTML = HERO_IMG[h.n]
+      ? `<img src="${HERO_IMG[h.n].src}" style="width:100%;height:100%;object-fit:cover;display:block;">`
+      : heroSVG(h,64);
+    c.innerHTML=`<div class="hero-portrait">${portraitHTML}</div>
       <div class="hp-nm" style="color:${FAC_COLOR[h.f]}">${h.n}</div>
       <div class="hp-wpn">${h.wpn.name}</div>
       <div class="hp-ult">필살 · ${h.ult.name}</div>
@@ -998,14 +1016,25 @@ function drawHeroMounted(){
   const lo=Math.sin(g.animTick*12)*4;
   ctx.beginPath(); ctx.moveTo(-R*0.7,R*1.1+bob); ctx.lineTo(-R*0.7+lo,R*1.8+bob); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(R*0.7,R*1.1+bob); ctx.lineTo(R*0.7-lo,R*1.8+bob); ctx.stroke();
-  // 무장 몸통
-  ctx.beginPath(); ctx.arc(R*0.1,-R*0.5+bob,R*0.7,0,Math.PI*2);
-  const grad=ctx.createRadialGradient(R*0.0,-R*0.7+bob,2,R*0.1,-R*0.5+bob,R*0.8);
-  grad.addColorStop(0,'#f0dcb0'); grad.addColorStop(1,col);
-  ctx.fillStyle=grad; ctx.fill(); ctx.strokeStyle=col; ctx.lineWidth=2.5; ctx.stroke();
-  // 투구
-  ctx.beginPath(); ctx.arc(R*0.1,-R*0.8+bob,R*0.5,Math.PI,0); ctx.fillStyle=col; ctx.fill();
-  ctx.beginPath(); ctx.arc(R*0.1,-R*1.3+bob,2.5,0,Math.PI*2); ctx.fillStyle='#e8c05a'; ctx.fill();
+  // 무장 — 그림이 있으면 그림, 없으면 코드 도트
+  const himg = HERO_IMG[h.n];
+  if(himg){
+    // 말 위 상반신 위치에 그림 배치 (약간 크게)
+    const isz=R*2.6;
+    ctx.save();
+    ctx.imageSmoothingEnabled=true;
+    ctx.drawImage(himg, -isz/2+R*0.1, -isz*0.72+bob, isz, isz);
+    ctx.restore();
+  } else {
+    // 무장 몸통
+    ctx.beginPath(); ctx.arc(R*0.1,-R*0.5+bob,R*0.7,0,Math.PI*2);
+    const grad=ctx.createRadialGradient(R*0.0,-R*0.7+bob,2,R*0.1,-R*0.5+bob,R*0.8);
+    grad.addColorStop(0,'#f0dcb0'); grad.addColorStop(1,col);
+    ctx.fillStyle=grad; ctx.fill(); ctx.strokeStyle=col; ctx.lineWidth=2.5; ctx.stroke();
+    // 투구
+    ctx.beginPath(); ctx.arc(R*0.1,-R*0.8+bob,R*0.5,Math.PI,0); ctx.fillStyle=col; ctx.fill();
+    ctx.beginPath(); ctx.arc(R*0.1,-R*1.3+bob,2.5,0,Math.PI*2); ctx.fillStyle='#e8c05a'; ctx.fill();
+  }
   // 무기 — 휘두르는 모션
   drawWeaponSwing(R, bob, col);
   // 무적 버프 오라
@@ -1151,6 +1180,7 @@ function showResult(sub){
 }
 
 resize();
+preloadHeroImages();
 </script>
 <script>
 if('serviceWorker' in navigator){
