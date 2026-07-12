@@ -193,6 +193,25 @@
 
   /* 결과 */
   .result-title{ font-size:60px; font-weight:900; letter-spacing:6px; }
+  /* 엔딩 리포트 */
+  #endingScreen{ background:radial-gradient(ellipse at 50% 20%, rgba(40,24,10,.98), rgba(6,4,2,.99)); overflow-y:auto; padding:24px 16px; align-items:flex-start; }
+  .ending-scroll{ max-width:460px; margin:0 auto; text-align:center; width:100%; }
+  .ending-badge{ font-size:16px; font-weight:900; color:#ffd050; letter-spacing:8px; margin-bottom:16px; text-shadow:0 0 20px rgba(255,208,80,.6); }
+  .ending-illust{ position:relative; width:100%; aspect-ratio:16/10; border-radius:16px; overflow:hidden;
+    border:2px solid rgba(255,190,80,.4); box-shadow:0 8px 32px rgba(0,0,0,.6), inset 0 0 40px rgba(0,0,0,.4); margin-bottom:18px; background:#160f08; }
+  .ending-illust img{ width:100%; height:100%; object-fit:cover; display:none; }
+  .ending-illust img.on{ display:block; }
+  .ending-illust-ph{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(160deg,#2a1c0e,#160f08); }
+  .ending-title{ font-size:24px; font-weight:900; letter-spacing:1px; margin-bottom:14px; line-height:1.3; }
+  .ending-lines{ font-size:15px; color:#d8c69a; line-height:1.9; margin-bottom:22px; }
+  .ending-report{ background:rgba(0,0,0,.35); border:1px solid rgba(255,190,80,.25); border-radius:14px;
+    padding:16px 18px; margin-bottom:14px; }
+  .ending-report .er-row{ display:flex; justify-content:space-between; align-items:center; font-size:14px; padding:5px 0; }
+  .ending-report .er-row + .er-row{ border-top:1px solid rgba(255,255,255,.06); }
+  .ending-report .er-k{ color:#9a8666; }
+  .ending-report .er-v{ font-weight:800; color:#f0e0b0; }
+  .ending-gong{ font-size:15px; margin-bottom:20px; }
   .result-title.win{ background:linear-gradient(180deg,#f6e4a8,#c99a3a); -webkit-background-clip:text; background-clip:text; color:transparent; }
   .result-title.lose{ color:#7a6a5a; }
   .result-stat{ font-size:15px; color:#b09a72; margin-top:14px; line-height:2; }
@@ -430,6 +449,22 @@
     <button class="menu-btn sm" onclick="toTitle()">타이틀로</button>
   </div>
 
+  <div class="screen" id="endingScreen">
+    <div class="ending-scroll">
+      <div class="ending-badge">天下統一</div>
+      <div class="ending-illust" id="endingIllust">
+        <img id="endingImg" alt="" />
+        <div class="ending-illust-ph" id="endingIllustPh"></div>
+      </div>
+      <div class="ending-title" id="endingTitle"></div>
+      <div class="ending-lines" id="endingLines"></div>
+      <div class="ending-report" id="endingReport"></div>
+      <div class="ending-gong" id="endingGong"></div>
+      <button class="menu-btn" onclick="goSelect()">다시 출진</button>
+      <button class="menu-btn sm" onclick="toTitle()">타이틀로</button>
+    </div>
+  </div>
+
   <div class="rotate-hint" id="rotateHint">
     <div class="ic">📱</div>
     <div style="font-size:20px;font-weight:800;color:#e8c05a;margin-top:18px">기기를 가로로 돌려주세요</div>
@@ -444,7 +479,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v4.2";
+const GAME_VER = "v4.3";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -894,8 +929,35 @@ function availableAwakening(g){
 }
 
 /* =========================================================
-   진화/각성 힌트 — 강화 카드 배지 + 요약 한 줄용
+   무장별 엔딩 서사 — 승리(천하통일) 시 완주 리포트에 표시
+   slug 키 사용. 각성 시 heroic, 미각성 시 base 서사 노출 가능하나
+   현재는 통합 서사 1종으로 구성.
    ========================================================= */
+const ENDINGS={
+  guanyu:{ title:"武聖, 의로써 천하를 얻다", col:"#ff3020",
+    lines:["청룡언월도가 마지막 적장의 목을 베던 날, 천하는 비로소 고요해졌다.","의(義)를 저버리지 않은 그 이름은 무성(武聖)으로 사당에 모셔져,","천 년이 지나도 향화가 끊이지 않았다."] },
+  zhaoyun:{ title:"常山의 龍, 일신이 곧 담이었다", col:"#40c0ff",
+    lines:["아두를 품고 백만 대군을 뚫던 그 용맹은 전설이 되었다.","단 한 번의 패주도 없이, 상산의 조자룡은 끝까지 창을 놓지 않았다.","일신이 곧 담(膽)이라 하였으니, 그 담대함이 천하를 지켰다."] },
+  zhangfei:{ title:"萬人敵, 장판교의 뇌성", col:"#ffb040",
+    lines:["장판교 위 한 번의 호통에 조조의 대군이 물러섰다.","만인을 대적하는 그 기개로, 장익덕은 마침내 난세를 갈랐다.","우레 같은 그 이름은 적들의 꿈속에서도 메아리쳤다."] },
+  lubu:{ title:"天下無雙, 오직 하나의 이름", col:"#c060ff",
+    lines:["인중여포 마중적토 — 사람 중엔 여포요 말 중엔 적토라.","방천화극이 향하는 곳에 맞설 자가 없었으니,","천하무쌍, 그 네 글자는 온전히 그의 것이었다."] },
+  huangzhong:{ title:"老當益壯, 백발의 신궁", col:"#ff9020",
+    lines:["나이 예순에도 활시위는 조금도 무뎌지지 않았다.","정군산에서 하후연을 쏘아 떨군 그 화살처럼,","노장의 마지막 일전은 젊은 무장들의 귀감이 되었다."] },
+  taishici:{ title:"信義의 무장, 약속을 지키다", col:"#ff9020",
+    lines:["신정(神亭)에서 손책과 겨루던 그 패기를 천하가 기억한다.","한 번 뱉은 약속은 목숨으로 지킨 사내,","태사자의 신의는 강동의 자랑이 되었다."] },
+  xiahoudun:{ title:"獨眼의 맹장, 조가의 방패", col:"#ff5a5a",
+    lines:["눈을 잃고도 물러서지 않았고, 잃은 눈알을 삼킨 그 투혼으로","하후원양은 조조의 가장 굳건한 방패가 되었다.","외눈의 맹장, 그 앞에서 감히 창을 겨눌 자 없었다."] },
+  zhangliao:{ title:"逍遙津의 위엄, 강동을 떨게 하다", col:"#40e0ff",
+    lines:["팔백의 결사로 십만을 흩은 소요진의 전설.","'장료가 온다'는 말에 강동의 아이들이 울음을 그쳤다 하니,","문원의 위명은 그렇게 천하에 새겨졌다."] },
+  xuchu:{ title:"虎痴, 우직한 충심으로", col:"#ffb040",
+    lines:["꾸밈없이 우직한 그 충심으로 주군을 지켰다.","위수에서 조조를 업고 화살을 막던 호랑이 같은 사내,","허중강의 이름은 곧 충의(忠義) 그 자체였다."] },
+  sunce:{ title:"小霸王, 강동을 열다", col:"#ffb020",
+    lines:["아버지의 뜻을 이어 강동 육군을 평정한 젊은 패왕.","소패왕의 기세로 강남에 손씨의 기틀을 세웠으니,","그 짧고 찬란한 생은 오나라의 새벽이 되었다."] },
+  ganning:{ title:"錦帆賊에서 名將으로", col:"#ff8020",
+    lines:["비단 돛을 단 강도에서 오나라 최고의 맹장으로.","백기(百騎)로 조조의 대영을 기습한 그 담력은","적조차 감탄케 한 무용담으로 남았다."] },
+};
+function heroEnding(slug){ return ENDINGS[slug] || { title:"천하를 평정하다", col:"#ffd050", lines:["난세를 종식시킨 그 이름은 역사에 길이 남았다."] }; }
 const STAT_LABEL={ dmg:'무력', rate:'속공', range:'범위', spd:'이속', hp:'체력',
   cdr:'전술', regen:'재생', ultc:'투기', magnet:'수집', pierce:'관통', vamp:'흡혈', crit:'급소' };
 // 현재 무장이 노리는 '다음 목표'(진화 미완료면 진화, 완료면 각성)와 req 반환. 이미 다 했으면 null.
@@ -2950,14 +3012,54 @@ function updateHUD(){
    승패
    ========================================================= */
 function winGame(){
-  G.gameOver=true; endLoop(); $('hud').classList.remove('on');
+  G.gameOver=true; endLoop(); hideCombo(); $('hud').classList.remove('on');
   BGM.setMode('menu');
-  const info=G_scenarioInfo||{name:'삼국 정벌'};
-  const winMsg = { '촉':'한실을 부흥하고 천하를 평정했다!', '위':'천하를 통일하여 위업을 완성했다!',
-    '오':'강동을 지켜내고 강남의 패자가 되었다!', '기타':'천하 제일의 무장, 그 이름을 새겼다!' };
-  $('resultTitle').className='result-title win'; $('resultTitle').textContent='천하통일';
-  showResult(`「${info.name}」 완수 — ${winMsg[info.faction]||'삼국을 평정했다!'}`);
+  // 전공(戰功) 정산 (기존 결과화면과 동일 규칙)
+  const g=G;
+  const gong = Math.round(g.kills*0.5 + g.chapter*15 + 100 + g.level*2);
+  META.gongxun = (META.gongxun||0) + gong;
+  saveMeta(META);
+  showEnding(gong);
   vib([100,60,100,60,150]);
+}
+function fmtTime(sec){ const m=Math.floor(sec/60), s=Math.floor(sec%60); return m+"분 "+(s<10?'0':'')+s+"초"; }
+function showEnding(gong){
+  const g=G, h=g.hero, slug=HERO_SLUG[h.n];
+  const ed=heroEnding(slug);
+  $('endingTitle').innerHTML=`<span style="color:${ed.col}">${ed.title}</span>`;
+  $('endingLines').innerHTML=ed.lines.map(l=>`<div>${l}</div>`).join('');
+  // 일러스트: assets/ending_<slug>.png 가 있으면 표시, 없으면 무장 초상화, 그것도 없으면 플레이스홀더
+  const img=$('endingImg'), ph=$('endingIllustPh');
+  img.classList.remove('on');
+  const tryEnding=new Image();
+  tryEnding.onload=()=>{ img.src=tryEnding.src; img.classList.add('on'); ph.style.display='none'; };
+  tryEnding.onerror=()=>{
+    // 폴백1: 무장 초상화
+    const hi=HERO_IMG[h.n];
+    if(hi && hi.complete && hi.naturalWidth>0){
+      img.src=hi.src; img.classList.add('on'); ph.style.display='none';
+      img.style.objectFit='contain'; img.style.background='radial-gradient(ellipse at center,#3a2810,#160f08)';
+    } else {
+      // 폴백2: 진영색 그라디언트 + 무장명
+      ph.style.display='flex';
+      ph.innerHTML=`<div style="text-align:center"><div style="font-size:52px;font-weight:900;color:${ed.col};text-shadow:0 0 24px ${ed.col}">${h.n}</div><div style="font-size:13px;color:#9a8666;margin-top:8px;letter-spacing:3px">${h.wpn.name}</div></div>`;
+    }
+  };
+  tryEnding.src='assets/ending_'+slug+'.png';
+  // 플레이 기록 리포트
+  const awkName=(()=>{ const a=AWAKENINGS.find(a=>a.hero===h.n && g._awkTaken?.[a.id]); return a?a.name:null; })();
+  const relicCount=Object.keys(g.relics||{}).length;
+  const rows=[
+    ['총 처치', `<b style="color:#e8756a">${g.kills}</b>명`],
+    ['최고 콤보', `<b style="color:#ff9a4a">${g.maxCombo||0}</b> 연격`],
+    ['클리어 시간', fmtTime(g.time)],
+    ['도달 레벨', `Lv.${g.level}`],
+    ['획득 유물', `${relicCount}종`],
+    ['각성', awkName?`<span style="color:#ff7a4a">${awkName}</span>`:'—'],
+  ];
+  $('endingReport').innerHTML=rows.map(([k,v])=>`<div class="er-row"><span class="er-k">${k}</span><span class="er-v">${v}</span></div>`).join('');
+  $('endingGong').innerHTML=`<span style="color:#ffd050">🎖️ 전공 +${gong}</span> <span style="color:#9a8666">(보유 ${META.gongxun})</span>`;
+  setTimeout(()=>show('endingScreen'),700);
 }
 function loseGame(){
   G.gameOver=true; endLoop(); $('hud').classList.remove('on');
