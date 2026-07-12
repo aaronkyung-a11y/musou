@@ -198,7 +198,9 @@
     border-top:2px solid var(--gold); border-bottom:2px solid var(--gold);
     transform:translateY(-50%) scaleX(0); animation:biBand .5s ease-out forwards; }
   @keyframes biBand{ to{ transform:translateY(-50%) scaleX(1); } }
-  .bi-portrait{ width:96px; height:96px; filter:drop-shadow(0 0 12px rgba(0,0,0,.6)); }
+  .bi-portrait{ width:96px; height:96px; filter:drop-shadow(0 0 12px rgba(0,0,0,.6));
+    border-radius:12px; overflow:hidden; flex:0 0 auto; }
+  .bi-portrait img{ border-radius:12px; }
   .bi-txt{ text-align:left; }
   .bi-name{ font-size:34px; font-weight:900; letter-spacing:2px; }
   .bi-quote{ font-size:16px; color:#e8dcc0; margin-top:6px; max-width:420px; }
@@ -1509,7 +1511,12 @@ function bigMsg(main, kills){
    ========================================================= */
 function showBossIntro(lord, cb){
   const intro=$('bossIntro'), band=$('biBand');
-  band.innerHTML=`<div class="bi-portrait">${heroSVG(lord,96)}</div>
+  // 초상화: 전용 적장 이미지 → 플레이어 무장 이미지 → 도트 SVG 순
+  const img = ENEMY_LORD_IMG[lord.n] || HERO_IMG[lord.n] || null;
+  const portraitHTML = img
+    ? `<img src="${img.src}" style="width:100%;height:100%;object-fit:cover;display:block;">`
+    : heroSVG(lord,96);
+  band.innerHTML=`<div class="bi-portrait">${portraitHTML}</div>
     <div class="bi-txt">
       <div class="bi-title">적장 등장</div>
       <div class="bi-name" style="color:${FAC_COLOR[lord.f]}">${lord.n}</div>
