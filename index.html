@@ -1001,21 +1001,13 @@ function drawHeroMounted(){
   const bob=Math.sin(g.animTick*10)*2.5;
   // 그림자
   ctx.globalAlpha=1;
-  ctx.beginPath(); ctx.ellipse(0,26,26,7,0,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fill();
-  // 적토마(붉은말) — 주인공은 큰 준마
+  ctx.beginPath(); ctx.ellipse(0,28,30,7,0,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fill();
+  // === 적토마 (옆모습 실루엣, 왼쪽 향함) ===
   const R=17;
-  ctx.fillStyle= (g.buffSpd>0? '#c85030' : '#6a3a26');
-  ctx.beginPath(); ctx.ellipse(0,R*0.5+bob,R*1.4,R*0.8,0,0,Math.PI*2); ctx.fill();
-  // 목/머리
-  ctx.beginPath(); ctx.ellipse(-R*1.2,R*0.1+bob,R*0.45,R*0.62,-0.5,0,Math.PI*2); ctx.fill();
-  // 갈기
-  ctx.strokeStyle='#3a2016'; ctx.lineWidth=3;
-  ctx.beginPath(); ctx.moveTo(-R*1.3,-R*0.3+bob); ctx.lineTo(-R*0.6,-R*0.1+bob); ctx.stroke();
-  // 다리
-  ctx.strokeStyle='#3a2818'; ctx.lineWidth=4;
-  const lo=Math.sin(g.animTick*12)*4;
-  ctx.beginPath(); ctx.moveTo(-R*0.7,R*1.1+bob); ctx.lineTo(-R*0.7+lo,R*1.8+bob); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(R*0.7,R*1.1+bob); ctx.lineTo(R*0.7-lo,R*1.8+bob); ctx.stroke();
+  const horseCol = g.buffSpd>0 ? '#d05a34' : '#7a3f26';
+  const horseDark = g.buffSpd>0 ? '#a03a1e' : '#5a2e1a';
+  const gallop = g.animTick*13;   // 질주 사이클
+  drawWarhorse(R, bob, gallop, horseCol, horseDark);
   // 무장 — 그림이 있으면 그림, 없으면 코드 도트
   const himg = HERO_IMG[h.n];
   if(himg){
@@ -1040,6 +1032,91 @@ function drawHeroMounted(){
   // 무적 버프 오라
   if(g.buffInvul>0){ ctx.globalAlpha=0.5+Math.sin(g.animTick*12)*0.2;
     ctx.strokeStyle='#7ac0ff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(R*0.1,-R*0.2+bob,R*1.6,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1; }
+  ctx.restore();
+}
+
+/* 군마(적토마) 옆모습 — drawHeroMounted 로컬 좌표계, 왼쪽 향함 */
+function drawWarhorse(R, bob, gallop, col, dark){
+  const y0 = bob;
+  const sw1 = Math.sin(gallop);
+  const sw2 = Math.sin(gallop+Math.PI);
+  ctx.save();
+  ctx.translate(0, y0);
+  ctx.lineCap='round';
+
+  // === 뒤쪽 다리 2개 (먼저, 몸통 뒤에) ===
+  ctx.strokeStyle=dark; ctx.lineWidth=5;
+  drawLeg(R*1.25, R*0.35, sw2, R);      // 뒷다리(먼쪽)
+  drawLeg(-R*1.05, R*0.35, sw1, R);     // 앞다리(먼쪽)
+
+  // === 몸통 === (등이 평평하고 배가 둥근 말 체형)
+  ctx.fillStyle=col;
+  ctx.beginPath();
+  ctx.moveTo(-R*1.25, -R*0.25);                          // 앞가슴 위
+  ctx.quadraticCurveTo(-R*0.3,-R*0.62, R*0.9,-R*0.5);    // 등 (평평)
+  ctx.quadraticCurveTo(R*1.55,-R*0.42, R*1.7,-R*0.05);   // 엉덩이
+  ctx.quadraticCurveTo(R*1.78, R*0.3, R*1.5, R*0.4);     // 엉덩이 뒤 아래
+  ctx.quadraticCurveTo(R*0.4, R*0.62, -R*0.9, R*0.42);   // 배
+  ctx.quadraticCurveTo(-R*1.45, R*0.3, -R*1.4,-R*0.05);  // 앞다리 앞선
+  ctx.quadraticCurveTo(-R*1.4,-R*0.18,-R*1.25,-R*0.25);
+  ctx.closePath(); ctx.fill();
+
+  // === 목 + 머리 (앞=왼쪽, 위로 솟았다 아래로) ===
+  ctx.beginPath();
+  ctx.moveTo(-R*1.1, -R*0.4);                            // 목 뿌리(어깨 위)
+  ctx.quadraticCurveTo(-R*1.75,-R*0.75, -R*2.0,-R*0.55); // 목 앞선 → 이마
+  ctx.quadraticCurveTo(-R*2.35,-R*0.4, -R*2.5,-R*0.05);  // 콧대
+  ctx.lineTo(-R*2.45, R*0.18);                            // 주둥이 끝
+  ctx.lineTo(-R*2.2, R*0.2);                              // 입 아래
+  ctx.quadraticCurveTo(-R*2.0, R*0.05, -R*1.85,-R*0.1);  // 턱선
+  ctx.quadraticCurveTo(-R*1.4, R*0.05, -R*1.0,-R*0.05);  // 목 뒷선 → 가슴
+  ctx.closePath(); ctx.fill();
+
+  // 귀
+  ctx.beginPath();
+  ctx.moveTo(-R*1.95,-R*0.6); ctx.lineTo(-R*2.05,-R*0.9); ctx.lineTo(-R*1.78,-R*0.62);
+  ctx.closePath(); ctx.fill();
+
+  // 갈기 (목 뒷선을 따라 뭉치들)
+  ctx.strokeStyle=dark; ctx.lineWidth=3;
+  for(let i=0;i<=6;i++){ const t=i/6;
+    const bx=-R*1.05 - t*R*0.95, by=-R*0.42 - t*R*0.28;
+    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(bx+R*0.14, by+R*0.34); ctx.stroke(); }
+
+  // 눈
+  ctx.fillStyle='#120c06';
+  ctx.beginPath(); ctx.arc(-R*1.95,-R*0.38, R*0.1, 0, Math.PI*2); ctx.fill();
+
+  // === 꼬리 (뒤=오른쪽) ===
+  ctx.strokeStyle=dark; ctx.lineWidth=6;
+  const tsw=Math.sin(gallop*0.6)*R*0.18;
+  ctx.beginPath();
+  ctx.moveTo(R*1.68,-R*0.05);
+  ctx.quadraticCurveTo(R*2.15, R*0.35+tsw, R*1.95, R*0.95+tsw);
+  ctx.stroke();
+  ctx.lineWidth=3.5;
+  ctx.beginPath();
+  ctx.moveTo(R*1.7, R*0.02);
+  ctx.quadraticCurveTo(R*2.3, R*0.4+tsw, R*2.15, R*1.05+tsw);
+  ctx.stroke();
+
+  // === 가까운 앞다리 2개 (몸통 위 덮어그림) ===
+  ctx.strokeStyle=col; ctx.lineWidth=6;
+  drawLeg(-R*1.0, R*0.35, sw2, R);      // 앞다리(가까운쪽)
+  drawLeg(R*1.3, R*0.35, sw1, R);       // 뒷다리(가까운쪽)
+
+  ctx.restore();
+}
+/* 다리: 어깨(hx,hy)→무릎→발굽, sw=질주 스윙(-1~1) */
+function drawLeg(hx, hy, sw, R){
+  const kneeX=hx + sw*R*0.35;
+  const kneeY=hy + R*0.62;
+  const hoofX=hx + sw*R*0.7;
+  const hoofY=hy + R*1.35;
+  ctx.beginPath();
+  ctx.moveTo(hx,hy); ctx.lineTo(kneeX,kneeY); ctx.lineTo(hoofX,hoofY); ctx.stroke();
+  ctx.save(); ctx.fillStyle='#1e120a';
+  ctx.beginPath(); ctx.arc(hoofX,hoofY,R*0.14,0,Math.PI*2); ctx.fill();
   ctx.restore();
 }
 
