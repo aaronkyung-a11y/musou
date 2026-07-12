@@ -189,8 +189,7 @@
   @keyframes critV{ 0%{opacity:0} 20%{opacity:1} 100%{opacity:0} }
 
   /* 적장 등장 연출 */
-  #bossIntro{ position:absolute; inset:0; z-index:22; pointer-events:none; display:none;
-    flex-direction:column; align-items:center; justify-content:center; background:rgba(6,4,2,.55); }
+  #bossIntro{ position:absolute; inset:0; z-index:22; pointer-events:none; display:none;    flex-direction:column; align-items:center; justify-content:center; background:rgba(6,4,2,.55); }
   #bossIntro.on{ display:flex; }
   .bi-band{ position:absolute; left:0; right:0; height:130px; top:50%; transform:translateY(-50%);
     background:linear-gradient(90deg, transparent, rgba(20,10,6,.92) 20%, rgba(20,10,6,.92) 80%, transparent);
@@ -205,6 +204,31 @@
   .bi-name{ font-size:34px; font-weight:900; letter-spacing:2px; }
   .bi-quote{ font-size:16px; color:#e8dcc0; margin-top:6px; max-width:420px; }
   .bi-title{ font-size:13px; color:var(--gold); font-weight:700; margin-bottom:2px; }
+
+  /* 필살기 컷인 — 무장 초상화가 확 들어오는 연출 */
+  #ultCutin{ position:absolute; inset:0; z-index:26; pointer-events:none; display:none;
+    align-items:center; justify-content:flex-start; overflow:hidden; }
+  #ultCutin.go{ display:flex; }
+  #ultCutin .uc-flash{ position:absolute; inset:0;
+    background:radial-gradient(ellipse at 30% 50%, rgba(255,220,120,.5), transparent 60%);
+    animation:ucFlash .5s ease-out forwards; }
+  @keyframes ucFlash{ 0%{opacity:0} 15%{opacity:1} 100%{opacity:0} }
+  #ultCutin .uc-portrait{ width:min(42vw,300px); height:min(42vw,300px); margin-left:-4vw;
+    filter:drop-shadow(6px 0 24px rgba(0,0,0,.7)) drop-shadow(0 0 30px rgba(255,200,100,.4));
+    transform:translateX(-120%) skewX(-8deg); animation:ucSlide .85s cubic-bezier(.2,1.3,.4,1) forwards; }
+  #ultCutin .uc-portrait img{ width:100%; height:100%; object-fit:contain; }
+  @keyframes ucSlide{ 0%{transform:translateX(-120%) skewX(-8deg);opacity:0}
+    18%{transform:translateX(-6%) skewX(-8deg);opacity:1}
+    72%{transform:translateX(-6%) skewX(-8deg);opacity:1}
+    100%{transform:translateX(-14%) skewX(-8deg);opacity:0} }
+  #ultCutin .uc-name{ position:absolute; left:min(38vw,290px); top:38%; font-size:min(9vw,52px); font-weight:900;
+    letter-spacing:4px; text-shadow:0 3px 12px #000; transform:translateX(60px); opacity:0;
+    animation:ucText .85s ease-out .12s forwards; }
+  #ultCutin .uc-skill{ position:absolute; left:min(38vw,290px); top:calc(38% + min(9vw,52px) + 6px);
+    font-size:min(6vw,32px); font-weight:800; color:#ffe680; text-shadow:0 2px 10px #000;
+    transform:translateX(60px); opacity:0; animation:ucText .85s ease-out .2s forwards; }
+  @keyframes ucText{ 0%{transform:translateX(60px);opacity:0} 25%{transform:translateX(0);opacity:1}
+    75%{opacity:1} 100%{opacity:0} }
 
   .rotate-hint{ position:absolute; inset:0; z-index:50; background:#0a0806; display:none;
     flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px; }
@@ -265,6 +289,7 @@
   <div id="toast"></div>
 
   <div id="bossIntro"><div class="bi-band" id="biBand"></div></div>
+  <div id="ultCutin"></div>
 
   <div id="storyScreen">
     <div class="story-inner">
@@ -719,6 +744,53 @@ let G=null, running=false, lastT=0, rafId=null;
 let timeScale=1;        // 슬로우모션용
 let zoom=1, zoomTarget=1, camShake=0;   // 줌/흔들림
 
+/* =========================================================
+   임팩트 연출 시스템 — 히트스톱 / 슬로모션 / 줌펀치
+   실시간(게임 정지와 무관)으로 진행되는 연출 타이머
+   ========================================================= */
+const FX = {
+  hitStop:0,        // 남은 히트스톱 시간(실시간 초). >0이면 게임 완전 정지
+  slowT:0, slowScale:1,  // 슬로모션 남은 시간 / 배율
+  zoomPunchT:0, zoomPunchFrom:1, zoomPunchTo:1, zoomPunchDur:0,  // 줌 펀치
+  flashT:0,
+  // 히트스톱: 짧고 강한 정지 (타격의 묵직함)
+  stop(dur){ this.hitStop=Math.max(this.hitStop,dur); },
+  // 슬로모션: dur초 동안 scale배속
+  slow(dur,scale){ this.slowT=dur; this.slowScale=scale; },
+  // 줌 펀치: 순간 확대 후 복귀 (강렬한 임팩트)
+  zoomPunch(to,dur){ this.zoomPunchFrom=zoom; this.zoomPunchTo=to; this.zoomPunchDur=dur; this.zoomPunchT=dur; },
+  shake(v){ camShake=Math.max(camShake,v); },
+  // 프리셋: 상황별 조합
+  impactLight(){ this.stop(0.04); this.shake(1); },
+  impactHeavy(){ this.stop(0.09); this.slow(0.18,0.35); this.zoomPunch(1.3,0.25); this.shake(2.2); },
+  impactCrit(){ this.stop(0.11); this.slow(0.25,0.28); this.zoomPunch(1.45,0.3); this.shake(2.6); },
+  impactUltStart(){ this.stop(0.55); this.zoomPunch(1.85,0.55); this.shake(1); },  // 필살기 발동 정지 강화
+  impactUltHit(){ this.stop(0.08); this.slow(0.7,0.4); this.zoomPunch(1.2,0.5); this.shake(3.5); },
+  impactBossDefeat(){ this.stop(0.5); this.slow(1.4,0.18); this.zoomPunch(1.7,1.2); this.shake(3.5); },
+  impactBossAppear(){ this.stop(0.3); this.zoomPunch(1.5,0.6); this.shake(1.5); },
+  impactMilestone(){ this.stop(0.12); this.slow(0.9,0.28); this.zoomPunch(0.82,0.9); this.shake(2.6); },  // 줌아웃
+  // 매 프레임 갱신 (rt = 실시간 dt). 반환: 게임 진행 배율(0이면 정지)
+  update(rt){
+    // 히트스톱 우선
+    if(this.hitStop>0){ this.hitStop-=rt; }
+    // 줌 펀치 (실시간 보간, 정지 중에도 진행)
+    if(this.zoomPunchT>0){
+      this.zoomPunchT-=rt;
+      const p=1-Math.max(0,this.zoomPunchT)/this.zoomPunchDur; // 0→1
+      // 앞 30%는 확대, 뒤 70%는 복귀 (탄성)
+      let z;
+      if(p<0.3){ z=this.zoomPunchFrom+(this.zoomPunchTo-this.zoomPunchFrom)*(p/0.3); }
+      else { const q=(p-0.3)/0.7; z=this.zoomPunchTo+(zoomTarget-this.zoomPunchTo)*q; }
+      zoom=z;
+    }
+    // 슬로모션
+    let scale=1;
+    if(this.slowT>0){ this.slowT-=rt; scale=this.slowScale; }
+    if(this.hitStop>0) return 0;   // 완전 정지
+    return scale;
+  }
+};
+
 const $=id=>document.getElementById(id);
 function vib(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
 function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on')); if(id)$(id).classList.add('on'); }
@@ -901,12 +973,15 @@ inputSurface.addEventListener('pointercancel', joyEnd);
    ========================================================= */
 function loop(now){
   if(!running) return;
-  let dt=(now-lastT)/1000; lastT=now;
-  if(dt>0.05) dt=0.05;
-  // 줌/슬로우 보간
-  zoom += (zoomTarget-zoom)*Math.min(1,dt*8);
-  if(camShake>0) camShake=Math.max(0,camShake-dt*3);
-  if(!G.gameOver && !G._paused) update(dt*timeScale);
+  let rt=(now-lastT)/1000; lastT=now;   // 실시간 dt
+  if(rt>0.05) rt=0.05;
+  // 임팩트 연출 갱신 (실시간) → 게임 진행 배율 반환
+  const fxScale = FX.update(rt);
+  // 줌 보간 (줌펀치 중이 아닐 때만 zoomTarget으로 부드럽게)
+  if(FX.zoomPunchT<=0) zoom += (zoomTarget-zoom)*Math.min(1,rt*8);
+  if(camShake>0) camShake=Math.max(0,camShake-rt*3);
+  const dt = rt * timeScale * fxScale;   // 실제 게임 진행량
+  if(!G.gameOver && !G._paused && dt>0) update(dt);
   render();
   rafId=requestAnimationFrame(loop);
 }
@@ -1269,8 +1344,7 @@ function useSkill1(){
   // 큰 스윙 모션 + 순간 임팩트(살짝 줌+흔들림+슬로우)
   const st = (h.wpn.type==='shoot')?'bow':(h.wpn.type==='pierce'?'thrust':'slash');
   g.swingType=st; g.swingDir=aimDir(); g.swingT=g.swingDur*1.8;
-  timeScale=0.5; zoomTarget=1.25; camShake=1.2;
-  clearTimeout(window._sk1T); window._sk1T=setTimeout(()=>{ if(timeScale<1){timeScale=1;} zoomTarget=1; }, 180);
+  FX.impactHeavy();
   vib([25,20,40]);
   switch(h.n){
     case '관우': case '여포':
@@ -1301,8 +1375,7 @@ function useSkill2(){
   // 임팩트
   const st2 = (h.wpn.type==='shoot')?'bow':(h.wpn.type==='pierce'?'thrust':'slash');
   g.swingType=st2; g.swingDir=aimDir(); g.swingT=g.swingDur*1.6;
-  timeScale=0.5; zoomTarget=1.25; camShake=1.4;
-  clearTimeout(window._sk2T); window._sk2T=setTimeout(()=>{ if(timeScale<1){timeScale=1;} zoomTarget=1; }, 180);
+  FX.impactHeavy();
   vib([25,20,40]);
   switch(h.n){
     case '관우': g.buffInvul=3; g.buffAtk=3; break;
@@ -1364,42 +1437,34 @@ const MILESTONE_MSG={
 };
 function killMilestone(n){
   const msg = MILESTONE_MSG[n/100] || (n+" 격파!!!");
-  // 화면 연출: 슬로우 + 줌 아웃(전장을 보여줌) + 강한 흔들림 + 플래시
-  timeScale=0.28; zoomTarget=0.85; camShake=2.4;
+  FX.impactMilestone();
   const fl=$('fxFlash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
   bigMsg(msg, n);
   SFX.milestone();
   vib([80,50,120,50,80]);
-  clearTimeout(window._msT);
-  window._msT=setTimeout(()=>{ timeScale=1; zoomTarget=1; }, 900);
 }
 function critEffect(e){
-  // 순간 슬로우모션 + 줌인 + 붉은 비네트 + 진동
-  timeScale=0.35; zoomTarget=1.35; camShake=1;
+  FX.impactCrit();
   $('critVig').classList.remove('go'); void $('critVig').offsetWidth; $('critVig').classList.add('go');
   SFX.crit();
   vib(30);
-  clearTimeout(window._critT);
-  window._critT=setTimeout(()=>{ timeScale=1; zoomTarget=1; }, 180);
 }
 function bossDefeated(e){
   const g=G;
-  // 처치 대연출
-  timeScale=0.2; zoomTarget=1.6; camShake=2.5;
+  FX.impactBossDefeat();
   const fl=$('fxFlash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
   skillFxName(e.lordName+' 격파!!!', '#ffd050');
   SFX.fanfare();
   vib([80,50,120,50,120]);
   // 대량 파티클
-  for(let i=0;i<120;i++){ const a=Math.random()*Math.PI*2, sp=120+Math.random()*400;
-    g.particles.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.6+Math.random()*0.6,col:i%2?'#ffd870':'#fff',r:4+Math.random()*3}); }
+  for(let i=0;i<160;i++){ const a=Math.random()*Math.PI*2, sp=120+Math.random()*500;
+    g.particles.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.6+Math.random()*0.8,col:i%2?'#ffd870':'#fff',r:4+Math.random()*4}); }
   g.bossActive=false;
   clearTimeout(window._bossT);
   window._bossT=setTimeout(()=>{
-    timeScale=1; zoomTarget=1;
     if(e.isFinal){ winGame(); }
     else { stageClear(); }
-  }, 1200);
+  }, 1500);
 }
 function stageClear(){
   const g=G;
@@ -1461,25 +1526,37 @@ function fireUlt(){
   SFX.ult();
   g.ultPose=1;   // 필살기 치켜든 포즈 (freeze 동안 유지)
 
-  // === 1단계: 멈춤(freeze) + 줌인 + 기술명 ===
-  timeScale=0;            // 게임 시간 완전 정지
-  zoomTarget=1.7;         // 크게 당겨서 주인공 클로즈업
+  // === 1단계: 강렬한 정지 + 줌인 + 컷인 + 기술명 ===
+  FX.impactUltStart();     // 히트스톱 0.55초 + 줌펀치 1.85
+  timeScale=0;             // 게임 시간 완전 정지
   camShake=0.3;
-  skillFxName(ult.name, '#ffe680');   // 기술명 크게
+  showUltCutin(g.hero, ult.name);   // 무장 컷인
+  skillFxName(ult.name, '#ffe680');
 
   clearTimeout(window._ultT);
   clearTimeout(window._ultT2);
-  // 0.45초 정지 후 폭발
-  window._ultT=setTimeout(()=>{ ultBurst(); }, 450);
+  window._ultT=setTimeout(()=>{ ultBurst(); }, 550);
+}
+// 필살기 컷인: 무장 초상화가 옆에서 확 들어오는 연출
+function showUltCutin(hero, name){
+  const el=$('ultCutin'); if(!el) return;
+  const img = HERO_IMG[hero.n];
+  const portrait = img ? `<img src="${img.src}">` : '';
+  el.innerHTML=`<div class="uc-flash"></div><div class="uc-portrait">${portrait}</div>
+    <div class="uc-name" style="color:${FAC_COLOR[hero.f]}">${hero.n}</div>
+    <div class="uc-skill">${name}</div>`;
+  el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+  clearTimeout(window._ucT);
+  window._ucT=setTimeout(()=>{ el.classList.remove('go'); }, 900);
 }
 function ultBurst(){
   const g=G; if(!g||g.gameOver) return;
   g.ultPose=0;
   const fl=$('fxFlash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
-  timeScale=0.4; zoomTarget=1.15; camShake=3;
+  FX.impactUltHit();       // 히트스톱 + 긴 슬로모션 + 줌펀치
+  timeScale=1;
   vib([80,40,120]);
   const base=g.hero.wpn.dmg*g.dmgMul;
-  // 무장별 고유 필살기
   switch(g.hero.n){
     case '관우':   ultGuanyu(base); break;
     case '조운':   ultZhaoyun(base); break;
@@ -1487,7 +1564,6 @@ function ultBurst(){
     case '여포':   ultLubu(base); break;
     case '황충':   ultHuangzhong(base); break;
     case '태사자': ultTaishici(base); break;
-    // 위/오 추가 무장 — 각자 고유 필살기
     case '하후돈': ultXiahoudun(base); break;
     case '장료':   ultZhangliao(base); break;
     case '허저':   ultXuchu(base); break;
@@ -1496,8 +1572,6 @@ function ultBurst(){
     default:       ultDefault(base);
   }
   updateHUD();
-  clearTimeout(window._ultT2);
-  window._ultT2=setTimeout(()=>{ timeScale=1; zoomTarget=1; }, 700);
 }
 // 공통: 금빛 파티클 폭발
 function ultParticles(n, col1, col2){
@@ -1555,7 +1629,7 @@ function ultZhangfei(base, fxName, fxCol){
   }
   ultParticles(120,'#ff9a4a','#fff');
   camShake=4;
-  timeScale=0.25;
+  FX.slow(0.3,0.25);
 }
 // 여포 — 무쌍난무: 초고속 회전 연타 (다단히트)
 function ultLubu(base, fxName, fxCol){
@@ -1728,6 +1802,7 @@ function showBossIntro(lord, cb){
   band.style.animation='none'; void band.offsetWidth; band.style.animation='biBand .5s ease-out forwards';
   intro.classList.add('on');
   SFX.bossRoar();
+  FX.impactBossAppear();
   vib([30,30,30]);
   setTimeout(()=>{ intro.classList.remove('on'); cb&&cb(); }, 2200);
 }
