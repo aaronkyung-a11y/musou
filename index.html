@@ -405,8 +405,17 @@ const RAR_W={c:64,r:28,e:8};
    그림이 있으면 선택화면·전투에서 사용, 없으면 코드 도트로 대체
    ========================================================= */
 const HERO_SLUG={ "관우":"guanyu","조운":"zhaoyun","장비":"zhangfei","여포":"lubu","황충":"huangzhong","태사자":"taishici" };
-// 적장 중 초상화가 있는 경우 (플레이어 무장과 같은 인물이면 재활용)
-const ENEMY_SLUG={ "여포":"lubu" };  // 최종보스 여포는 초상화 사용
+// 적장 전용 초상화 (별도 파일). 여포는 플레이어 이미지 재활용.
+const ENEMY_LORD_IMG={};   // lordName -> Image
+const ENEMY_LORD_SLUG={ "장보":"zhangbao" };  // 별도 적장 이미지
+function preloadEnemyLordImages(){
+  for(const name in ENEMY_LORD_SLUG){
+    const img=new Image();
+    img.onload=()=>{ ENEMY_LORD_IMG[name]=img; };
+    img.onerror=()=>{};
+    img.src='assets/'+ENEMY_LORD_SLUG[name]+'.png';
+  }
+}
 const HERO_IMG={};        // name -> HTMLImageElement (로드 완료된 것만)
 function preloadHeroImages(){
   for(const name in HERO_SLUG){
@@ -1401,7 +1410,9 @@ function drawEnemy(e,alpha){
       ctx.restore();
     }
 
-    const bimg = ENEMY_SLUG[e.lordName] ? HERO_IMG[ (Object.keys(HERO_SLUG).find(k=>HERO_SLUG[k]===ENEMY_SLUG[e.lordName])) ] : null;
+    // 보스 초상화: 전용 적장 이미지 우선, 없으면 재활용(여포=lubu)
+    let bimg = ENEMY_LORD_IMG[e.lordName] || null;
+    if(!bimg && e.lordName==='여포') bimg = HERO_IMG['여포'] || null;
     // 기마
     drawHorse(e.x, e.y+bob, e.r, flash?'#fff':e.col, flash);
     if(bimg){
@@ -1782,6 +1793,7 @@ function showResult(sub){
 
 resize();
 preloadHeroImages();
+preloadEnemyLordImages();
 </script>
 <script>
 if('serviceWorker' in navigator){
