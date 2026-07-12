@@ -30,17 +30,19 @@
   #selectScreen{ justify-content:flex-start; padding:14px 12px; overflow-y:auto; }
   .sel-head{ font-size:24px; font-weight:800; color:var(--gold); }
   .sel-sub{ font-size:13px; color:#9a8666; margin:4px 0 12px; }
-  .hero-grid{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px;
-    width:100%; max-width:760px; }
+  .hero-grid{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px;
+    width:100%; max-width:560px; }
   .hero-card{ background:rgba(30,22,16,.92); border:2px solid #3a2e22; border-radius:14px;
-    padding:12px 10px; cursor:pointer; transition:transform .1s,border-color .1s; min-width:0;
+    padding:0 0 10px; cursor:pointer; transition:transform .1s,border-color .1s; min-width:0;
     display:flex; flex-direction:column; align-items:center; text-align:center; overflow:hidden; }
   .hero-card:active{ transform:scale(.96); }
   .hero-card:hover{ border-color:var(--gold); }
-  .hero-portrait{ width:64px; height:64px; margin:0 auto; flex:0 0 auto; border-radius:50%; overflow:hidden; }
-  .hero-portrait svg{ display:block; width:64px !important; height:64px !important; }
-  .hp-nm{ font-size:17px; font-weight:900; margin-top:5px; }
-  .hp-wpn{ font-size:12px; color:var(--gold); margin-top:3px; font-weight:700;
+  .hero-portrait{ width:100%; aspect-ratio:1/1; margin:0; flex:0 0 auto; overflow:hidden;
+    border-bottom:2px solid #3a2e22; background:radial-gradient(ellipse at 50% 40%,#2a2016,#15100a); }
+  .hero-portrait img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .hero-portrait svg{ display:block; width:100% !important; height:100% !important; }
+  .hp-nm{ font-size:19px; font-weight:900; margin-top:8px; }
+  .hp-wpn{ font-size:12.5px; color:var(--gold); margin-top:3px; font-weight:700;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .hp-ult{ font-size:11.5px; color:#d8a8e8; margin-top:2px;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -283,6 +285,7 @@
     <div class="sub-title">무 쌍 기 · 일기당천</div>
     <button class="menu-btn" onclick="goSelect()">출진</button>
     <button class="menu-btn sm" onclick="showHelp()">조작 방법</button>
+    <button class="menu-btn sm" id="bgmBtn" onclick="toggleBGM()">🔊 음악 ON</button>
   </div>
 
   <div class="screen" id="selectScreen">
@@ -316,6 +319,86 @@
    무장 — 기본공격 + 기술1 + 기술2 + 필살기
    ========================================================= */
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
+
+/* =========================================================
+   BGM — Web Audio 절차적 배경음악 (동양풍 5음계)
+   ========================================================= */
+const BGM = {
+  ctx:null, master:null, playing:false, timer:null, step:0, mode:'menu',
+  init(){
+    if(this.ctx) return;
+    try{
+      this.ctx = new (window.AudioContext||window.webkitAudioContext)();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.32;
+      this.master.connect(this.ctx.destination);
+    }catch(e){ this.ctx=null; }
+  },
+  // 음 하나 (관악/현악 느낌)
+  note(freq, t, dur, type, vol){
+    if(!this.ctx) return;
+    const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+    o.type=type||'triangle'; o.frequency.value=freq;
+    o.connect(g); g.connect(this.master);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol||0.2, t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+    o.start(t); o.stop(t+dur+0.05);
+  },
+  // 드럼 (전투용)
+  drum(t, vol){
+    if(!this.ctx) return;
+    const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+    o.type='sine'; o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(50, t+0.12);
+    o.connect(g); g.connect(this.master);
+    g.gain.setValueAtTime(vol||0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.15);
+    o.start(t); o.stop(t+0.2);
+  },
+  start(mode){
+    this.init(); if(!this.ctx) return;
+    if(this.ctx.state==='suspended') this.ctx.resume();
+    this.mode=mode||'menu'; this.step=0;
+    if(this.playing) return;
+    this.playing=true;
+    this.master.gain.setTargetAtTime(mode==='battle'?0.28:0.22, this.ctx.currentTime, 0.5);
+    this.loop();
+  },
+  loop(){
+    if(!this.playing||!this.ctx) return;
+    // 궁상각치우 5음계 (C D E G A) 여러 옥타브
+    const penta=[261.63,293.66,329.63,392.00,440.00,523.25,587.33,659.25];
+    const bass =[130.81,146.83,164.81,196.00];
+    const t=this.ctx.currentTime;
+    const battle=this.mode==='battle';
+    const stepDur=battle?0.28:0.42;
+    const s=this.step;
+    // 멜로디 (5음계에서 진행)
+    const melScale=battle?[0,2,3,4,2,5,4,3, 0,4,5,7,5,4,2,0]:[0,2,4,3,2,0,3,4, 5,4,2,3,4,2,0,2];
+    const mi=melScale[s%melScale.length];
+    this.note(penta[mi], t, stepDur*0.9, battle?'sawtooth':'triangle', battle?0.14:0.16);
+    // 화음 살짝
+    if(s%2===0) this.note(penta[mi]*1.5, t, stepDur*0.8, 'triangle', 0.06);
+    // 베이스 (매 박)
+    if(s%2===0) this.note(bass[(Math.floor(s/2))%bass.length], t, stepDur*1.6, 'sine', battle?0.18:0.12);
+    // 드럼 (전투 시)
+    if(battle){ this.drum(t, 0.4); if(s%2===1) this.drum(t+stepDur*0.5, 0.2); }
+    this.step++;
+    this.timer=setTimeout(()=>this.loop(), stepDur*1000);
+  },
+  setMode(mode){
+    if(this.mode===mode) return;
+    this.mode=mode; this.step=0;
+    if(this.ctx&&this.playing) this.master.gain.setTargetAtTime(mode==='battle'?0.28:0.22, this.ctx.currentTime, 0.5);
+  },
+  stop(){
+    this.playing=false; if(this.timer) clearTimeout(this.timer);
+    if(this.ctx&&this.master) this.master.gain.setTargetAtTime(0, this.ctx.currentTime, 0.3);
+  },
+  toggle(){
+    if(this.playing){ this.stop(); return false; }
+    else { this.start(this.mode); return true; }
+  }
+};
 const HEROES=[
   { n:"관우", f:"촉", mig:97, ldr:94, spd:2.2,
     wpn:{name:"청룡언월도", type:"spin", dmg:26, range:100, rate:52},
@@ -500,14 +583,19 @@ function heroSVG(h,size){
     <rect x="30" y="8" width="4" height="8" rx="1" fill="${col}"/><circle cx="32" cy="8" r="2.5" fill="#e8c05a"/>
   </svg>`;
 }
+function toggleBGM(){
+  const on = BGM.toggle();
+  const btn=$('bgmBtn'); if(btn) btn.textContent = on ? '🔊 음악 ON' : '🔇 음악 OFF';
+}
 function goSelect(){
+  BGM.start('menu');
   endLoop(); $('hud').classList.remove('on');
   const grid=$('heroGrid'); grid.innerHTML='';
   HEROES.forEach((h,i)=>{
     const c=document.createElement('div'); c.className='hero-card'; c.onclick=()=>startGame(i);
     const portraitHTML = HERO_IMG[h.n]
-      ? `<img src="${HERO_IMG[h.n].src}" style="width:100%;height:100%;object-fit:cover;display:block;">`
-      : heroSVG(h,64);
+      ? `<img src="${HERO_IMG[h.n].src}">`
+      : heroSVG(h,200);
     c.innerHTML=`<div class="hero-portrait">${portraitHTML}</div>
       <div class="hp-nm" style="color:${FAC_COLOR[h.f]}">${h.n}</div>
       <div class="hp-wpn">${h.wpn.name}</div>
@@ -522,6 +610,7 @@ function goSelect(){
    게임 시작
    ========================================================= */
 function startGame(heroIdx){
+  BGM.setMode('battle');
   const h=HEROES[heroIdx];
   G={
     hero:h, px:0,py:0, vx:0,vy:0, facing:1,
@@ -1805,12 +1894,14 @@ function updateHUD(){
    ========================================================= */
 function winGame(){
   G.gameOver=true; endLoop(); $('hud').classList.remove('on');
+  BGM.setMode('menu');
   $('resultTitle').className='result-title win'; $('resultTitle').textContent='천하통일';
   showResult('전 5장 정벌 완수! 삼국을 평정했다!');
   vib([100,60,100,60,150]);
 }
 function loseGame(){
   G.gameOver=true; endLoop(); $('hud').classList.remove('on');
+  BGM.setMode('menu');
   $('resultTitle').className='result-title lose'; $('resultTitle').textContent='전 사';
   const sc=SCENARIO[G.chapter];
   showResult(`${sc.chapter} 「${sc.title}」에서 전사`); vib([100,50,100]);
