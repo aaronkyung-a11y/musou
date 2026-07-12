@@ -488,7 +488,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v4.8";
+const GAME_VER = "v4.9";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -645,8 +645,8 @@ const SFX = {
 /* 무장 해금 비용(전공). 기본 3인(관우·조운·장비)은 0. 강할수록 비쌈 */
 const HERO_UNLOCK_COST={
   '관우':0, '조운':0, '장비':0,
-  '태사자':80, '감녕':100, '하후돈':120, '황충':140,
-  '장료':180, '허저':200, '손책':220, '여포':300,
+  '태사자':60, '감녕':120, '하후돈':220, '황충':350,
+  '장료':500, '허저':700, '손책':950, '여포':1400,
 };
 const HEROES=[
   { n:"관우", f:"촉", mig:97, ldr:94, spd:2.2,
