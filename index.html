@@ -37,8 +37,11 @@
     display:flex; flex-direction:column; align-items:center; text-align:center; overflow:hidden; }
   .hero-card:active{ transform:scale(.96); }
   .hero-card:hover{ border-color:var(--gold); }
-  .hero-portrait{ width:100%; aspect-ratio:1/1; margin:0; flex:0 0 auto; overflow:hidden;
+  .hero-portrait{ position:relative; width:100%; aspect-ratio:1/1; margin:0; flex:0 0 auto; overflow:hidden;
     border-bottom:2px solid #3a2e22; background:radial-gradient(ellipse at 50% 40%,#2a2016,#15100a); }
+  .fac-badge{ position:absolute; top:6px; left:6px; z-index:2; width:24px; height:24px; border-radius:6px;
+    display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:900; color:#fff;
+    box-shadow:0 1px 4px rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.3); }
   .hero-portrait img{ width:100%; height:100%; object-fit:cover; display:block; }
   .hero-portrait svg{ display:block; width:100% !important; height:100% !important; }
   .hp-nm{ font-size:19px; font-weight:900; margin-top:8px; }
@@ -475,23 +478,86 @@ const ENEMY_LORDS=[
    시나리오 — 삼국 정벌 (5장)
    각 장: 도입 스토리 → 잡병 웨이브(목표 처치) → 보스 적장전
    ========================================================= */
-const SCENARIO=[
-  { chapter:"제 1 장", title:"황건적의 난",
-    intro:"황건적 무리가 관도를 휩쓸고 있다.\n백성을 지키기 위해 적진으로 돌격하라!",
-    killGoal:60, boss:{ n:"장보", f:"기타", quote:"태평도의 힘을 보아라!", hpMul:1.0, dmgMul:1.0 } },
-  { chapter:"제 2 장", title:"사수관 전투",
-    intro:"동탁의 맹장 화웅이 관문을 막아섰다.\n제후 연합군의 예봉이 되어라.",
-    killGoal:80, boss:{ n:"화웅", f:"기타", quote:"감히 누가 내 앞을 막느냐!", hpMul:1.4, dmgMul:1.2 } },
-  { chapter:"제 3 장", title:"백마의 결전",
-    intro:"하북의 명장 안량·문추가 이끄는 정예군.\n일기당천의 무용으로 돌파하라.",
-    killGoal:100, boss:{ n:"안량", f:"기타", quote:"내 칼 아래 살아남을 자 없다.", hpMul:1.8, dmgMul:1.4 } },
-  { chapter:"제 4 장", title:"장판교의 사투",
-    intro:"조조의 대군이 밀려온다.\n장료가 선봉에 섰다. 물러설 곳은 없다.",
-    killGoal:120, boss:{ n:"장료", f:"위", quote:"장문원의 위엄을 보여주마.", hpMul:2.3, dmgMul:1.6 } },
-  { chapter:"최종장", title:"천하를 건 일전",
-    intro:"천하 제일의 무장, 여포가 방천화극을 들고 나타났다.\n삼국 최강을 넘어서라!",
-    killGoal:150, boss:{ n:"여포", f:"기타", quote:"천하에 나를 당할 자 없다!", hpMul:3.2, dmgMul:2.0, final:true } }
-];
+// 진영별 시나리오 (무장 진영에 따라 자동 선택)
+const SCENARIOS = {
+  촉: {
+    faction:"촉", name:"유비의 대업", subtitle:"蜀 · 도원의 맹세부터 북벌까지",
+    stages:[
+      { chapter:"제 1 장", title:"황건적의 난",
+        intro:"난세가 열렸다. 황건적이 천하를 어지럽힌다.\n의를 세워 도원의 맹세를 지켜라!",
+        killGoal:60, boss:{ n:"장보", f:"기타", quote:"태평도의 힘을 보아라!", hpMul:1.0, dmgMul:1.0 } },
+      { chapter:"제 2 장", title:"사수관 전투",
+        intro:"동탁 토벌 연합군에 가담했다.\n관문을 지키는 맹장 화웅을 베어라.",
+        killGoal:80, boss:{ n:"화웅", f:"기타", quote:"감히 누가 내 앞을 막느냐!", hpMul:1.4, dmgMul:1.2 } },
+      { chapter:"제 3 장", title:"백마의 결전",
+        intro:"조조를 도와 원소군과 맞선다.\n하북의 명장 안량을 쓰러뜨려라.",
+        killGoal:100, boss:{ n:"안량", f:"기타", quote:"내 칼 아래 살아남을 자 없다.", hpMul:1.8, dmgMul:1.4 } },
+      { chapter:"제 4 장", title:"장판교의 사투",
+        intro:"조조의 대군에 쫓기는 피란길.\n선봉 장료를 막아 백성을 지켜라.",
+        killGoal:120, boss:{ n:"장료", f:"위", quote:"장문원의 위엄을 보여주마.", hpMul:2.2, dmgMul:1.6 } },
+      { chapter:"제 5 장", title:"적벽대전",
+        intro:"오와 연합해 조조의 백만 대군에 맞선다.\n장강을 붉게 물들여라!",
+        killGoal:140, boss:{ n:"허저", f:"위", quote:"우오오! 덤벼라!", hpMul:2.6, dmgMul:1.7 } },
+      { chapter:"최종장", title:"오장원의 별",
+        intro:"제갈량과 함께 마지막 북벌에 나선다.\n위의 최강자를 넘어 한실을 부흥하라!",
+        killGoal:160, boss:{ n:"여포", f:"기타", quote:"천하에 나를 당할 자 없다!", hpMul:3.2, dmgMul:2.0, final:true } },
+    ]
+  },
+  위: {
+    faction:"위", name:"조조의 패업", subtitle:"魏 · 난세의 간웅, 천하를 노리다",
+    stages:[
+      { chapter:"제 1 장", title:"황건적 토벌",
+        intro:"난세에 몸을 일으켰다. 황건적을 토벌해\n대업의 첫 발을 내디뎌라.",
+        killGoal:60, boss:{ n:"장보", f:"기타", quote:"태평도의 힘을 보아라!", hpMul:1.0, dmgMul:1.0 } },
+      { chapter:"제 2 장", title:"복양의 화공",
+        intro:"연주를 두고 여포와 격돌한다.\n복양성의 맹장들을 격파하라.",
+        killGoal:85, boss:{ n:"화웅", f:"기타", quote:"내 앞을 막지 마라!", hpMul:1.5, dmgMul:1.3 } },
+      { chapter:"제 3 장", title:"관도대전",
+        intro:"원소의 대군이 관도로 밀려온다.\n열세를 뒤집어 하북을 손에 넣어라.",
+        killGoal:110, boss:{ n:"안량", f:"기타", quote:"하북의 힘을 얕보지 마라!", hpMul:1.9, dmgMul:1.5 } },
+      { chapter:"제 4 장", title:"적벽의 불길",
+        intro:"형주를 얻고 강동으로 남하한다.\n손·유 연합군을 장강에서 쓸어버려라.",
+        killGoal:130, boss:{ n:"장료", f:"위", quote:"주공을 위해 앞장선다!", hpMul:2.3, dmgMul:1.6 } },
+      { chapter:"최종장", title:"한중 평정",
+        intro:"천하 통일의 마지막 관문, 한중.\n최강의 적을 넘어 위업을 완성하라!",
+        killGoal:150, boss:{ n:"여포", f:"기타", quote:"천하에 나를 당할 자 없다!", hpMul:3.0, dmgMul:1.9, final:true } },
+    ]
+  },
+  오: {
+    faction:"오", name:"손씨의 강동", subtitle:"吳 · 강동의 호랑이들, 패권을 세우다",
+    stages:[
+      { chapter:"제 1 장", title:"강동 평정",
+        intro:"아버지 손견의 뜻을 이어\n강동 여섯 군을 평정하라.",
+        killGoal:65, boss:{ n:"장보", f:"기타", quote:"태평도의 힘을 보아라!", hpMul:1.1, dmgMul:1.1 } },
+      { chapter:"제 2 장", title:"하구의 결전",
+        intro:"강하태수 황조가 강을 막아섰다.\n아버지의 원수를 갚아라.",
+        killGoal:90, boss:{ n:"화웅", f:"기타", quote:"강동의 애송이들!", hpMul:1.6, dmgMul:1.3 } },
+      { chapter:"제 3 장", title:"적벽대전",
+        intro:"조조의 백만 대군이 남하한다.\n주유와 함께 화공으로 강동을 지켜라!",
+        killGoal:115, boss:{ n:"허저", f:"위", quote:"우오오! 덤벼라!", hpMul:2.1, dmgMul:1.6 } },
+      { chapter:"최종장", title:"이릉대전",
+        intro:"관우의 원수를 갚으러 유비가 쳐들어온다.\n육손의 화계로 촉의 대군을 불태워라!",
+        killGoal:140, boss:{ n:"여포", f:"기타", quote:"천하에 나를 당할 자 없다!", hpMul:3.0, dmgMul:1.9, final:true } },
+    ]
+  },
+  기타: {
+    faction:"기타", name:"여포 · 군웅할거", subtitle:"呂布 · 천하 제일의 무장",
+    stages:[
+      { chapter:"제 1 장", title:"낙양의 배신",
+        intro:"천하 제일의 무용을 지녔으나 주인이 없다.\n힘으로 길을 열어라.",
+        killGoal:70, boss:{ n:"장보", f:"기타", quote:"역적 여포!", hpMul:1.2, dmgMul:1.2 } },
+      { chapter:"제 2 장", title:"호뢰관 삼전",
+        intro:"반동탁 연합군이 호뢰관으로 몰려온다.\n제후 연합을 홀로 상대하라.",
+        killGoal:100, boss:{ n:"안량", f:"기타", quote:"여포라도 두렵지 않다!", hpMul:1.9, dmgMul:1.5 } },
+      { chapter:"최종장", title:"하비의 최후",
+        intro:"조조의 대군에 포위된 하비성.\n최강의 무장으로 운명에 맞서라!",
+        killGoal:130, boss:{ n:"허저", f:"위", quote:"주공의 명이다, 여포를 잡아라!", hpMul:2.8, dmgMul:1.9, final:true } },
+    ]
+  }
+};
+// 현재 진행 중인 시나리오의 장 배열 (startGame에서 무장 진영에 따라 설정)
+let SCENARIO = SCENARIOS['촉'].stages;
+let G_scenarioInfo = SCENARIOS['촉'];
 const UPGRADES=[
   {id:'dmg', ic:'⚔️', rar:'c', t:'무력 증강', d:'공격 대미지 +18%', max:8, eff:s=>s.dmgMul+=0.18},
   {id:'rate',ic:'💨', rar:'c', t:'속공', d:'공격 속도 +15%', max:6, eff:s=>s.rateMul*=0.87},
@@ -591,15 +657,17 @@ function goSelect(){
   BGM.start('menu');
   endLoop(); $('hud').classList.remove('on');
   const grid=$('heroGrid'); grid.innerHTML='';
+  const FAC_CN={ '촉':'蜀', '위':'魏', '오':'吳', '기타':'呂' };
   HEROES.forEach((h,i)=>{
     const c=document.createElement('div'); c.className='hero-card'; c.onclick=()=>startGame(i);
     const portraitHTML = HERO_IMG[h.n]
       ? `<img src="${HERO_IMG[h.n].src}">`
       : heroSVG(h,200);
-    c.innerHTML=`<div class="hero-portrait">${portraitHTML}</div>
+    const scName = (SCENARIOS[h.f]||SCENARIOS['촉']).name;
+    c.innerHTML=`<div class="hero-portrait"><span class="fac-badge" style="background:${FAC_COLOR[h.f]}">${FAC_CN[h.f]||''}</span>${portraitHTML}</div>
       <div class="hp-nm" style="color:${FAC_COLOR[h.f]}">${h.n}</div>
       <div class="hp-wpn">${h.wpn.name}</div>
-      <div class="hp-ult">필살 · ${h.ult.name}</div>
+      <div class="hp-ult">${scName}</div>
       <div class="hp-stat">武 ${h.mig} · 統 ${h.ldr}</div>`;
     grid.appendChild(c);
   });
@@ -612,6 +680,10 @@ function goSelect(){
 function startGame(heroIdx){
   BGM.setMode('battle');
   const h=HEROES[heroIdx];
+  // 무장 진영에 맞는 시나리오 선택
+  const sc = SCENARIOS[h.f] || SCENARIOS['촉'];
+  SCENARIO = sc.stages;
+  G_scenarioInfo = sc;
   G={
     hero:h, px:0,py:0, vx:0,vy:0, facing:1,
     worldW:2600, worldH:1800,   // 넓은 전장
@@ -656,12 +728,17 @@ function startChapter(idx){
 }
 function showStoryScreen(sc, cb){
   const el=$('storyScreen');
-  $('storyChapter').textContent=sc.chapter;
+  // 첫 장이면 시나리오 이름 표시
+  const info=G_scenarioInfo;
+  if(G.chapter===0 && info){
+    $('storyChapter').textContent=info.name+' · '+sc.chapter;
+  } else {
+    $('storyChapter').textContent=sc.chapter;
+  }
   $('storyTitle').textContent=sc.title;
   $('storyIntro').textContent=sc.intro;
   $('storyGoal').textContent='목표: 적병 '+sc.killGoal+'명 격파 후 적장 토벌';
   el.classList.add('on');
-  // 탭하면 시작
   const startFn=()=>{ el.classList.remove('on'); el.removeEventListener('pointerdown',startFn); cb&&cb(); };
   el.addEventListener('pointerdown', startFn);
 }
@@ -1895,8 +1972,11 @@ function updateHUD(){
 function winGame(){
   G.gameOver=true; endLoop(); $('hud').classList.remove('on');
   BGM.setMode('menu');
+  const info=G_scenarioInfo||{name:'삼국 정벌'};
+  const winMsg = { '촉':'한실을 부흥하고 천하를 평정했다!', '위':'천하를 통일하여 위업을 완성했다!',
+    '오':'강동을 지켜내고 강남의 패자가 되었다!', '기타':'천하 제일의 무장, 그 이름을 새겼다!' };
   $('resultTitle').className='result-title win'; $('resultTitle').textContent='천하통일';
-  showResult('전 5장 정벌 완수! 삼국을 평정했다!');
+  showResult(`「${info.name}」 완수 — ${winMsg[info.faction]||'삼국을 평정했다!'}`);
   vib([100,60,100,60,150]);
 }
 function loseGame(){
