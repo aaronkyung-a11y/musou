@@ -220,6 +220,8 @@
   .bi-quote{ font-size:16px; color:#e8dcc0; margin-top:6px; max-width:420px; }
   .bi-title{ font-size:13px; color:var(--gold); font-weight:700; margin-bottom:2px; }
 
+  #verTag{ position:absolute; bottom:12px; right:14px; font-size:12px; color:#7a6a4a; letter-spacing:1px; z-index:5; }
+
   /* 콤보 카운터 */
   #comboBox{ position:fixed; top:22%; right:5%; z-index:23; pointer-events:none;
     display:none; flex-direction:column; align-items:flex-end; line-height:.9;
@@ -355,6 +357,7 @@
     <button class="menu-btn sm" onclick="openShop()">🎖️ 병영 (영구 강화)</button>
     <button class="menu-btn sm" onclick="showHelp()">조작 방법</button>
     <button class="menu-btn sm" id="bgmBtn" onclick="toggleBGM()">🔊 음악 ON</button>
+    <div id="verTag">v3.7</div>
   </div>
 
   <div class="screen" id="shopScreen">
@@ -489,8 +492,11 @@ const SFX = {
   master:null, lastHit:0, muted:false,
   ensure(){
     if(!BGM.ctx) BGM.init();
-    if(BGM.ctx && !this.master){
-      this.master=BGM.ctx.createGain(); this.master.gain.value=0.5; this.master.connect(BGM.ctx.destination);
+    if(BGM.ctx){
+      if(BGM.ctx.state==='suspended') BGM.ctx.resume();   // 정지 상태면 재개 (효과음 안 나오는 문제 해결)
+      if(!this.master){
+        this.master=BGM.ctx.createGain(); this.master.gain.value=0.6; this.master.connect(BGM.ctx.destination);
+      }
     }
     return BGM.ctx;
   },
@@ -518,11 +524,11 @@ const SFX = {
   },
   // 기본 타격 (연타 방지 스로틀)
   hit(){
-    const now=performance.now(); if(now-this.lastHit<45) return; this.lastHit=now;
-    this.noise(0.06, 0.12, 1200);
+    const now=performance.now(); if(now-this.lastHit<40) return; this.lastHit=now;
+    this.noise(0.06, 0.18, 1100);
   },
-  // 적 피격 (퍽)
-  enemyHit(){ this.noise(0.05, 0.10, 600); },
+  // 적 피격 (퍽) — 스로틀
+  enemyHit(){ const now=performance.now(); if(now-(this._lastEH||0)<35) return; this._lastEH=now; this.noise(0.045, 0.13, 700); },
   // 크리티컬
   crit(){ this.noise(0.09,0.22,500); this.tone(880,0.12,'square',0.15,220); },
   // 스킬
@@ -1007,6 +1013,7 @@ function startGame(heroIdx){
   G_scenarioInfo = sc;
   BGM.setFaction(h.f);   // 진영별 곡조
   BGM.setMode('battle');
+  SFX.ensure();          // 효과음 오디오 컨텍스트 확실히 준비
   G={
     hero:h, px:0,py:0, vx:0,vy:0, facing:1,
     worldW:2600, worldH:1800,   // 넓은 전장
@@ -1413,7 +1420,7 @@ function updateBoss(e, dx, dy, d, dt){
     e.x += dx/d*e.spd*dt; e.y += dy/d*e.spd*dt;
     // 접촉 대미지
     if(d<e.r+18 && g.buffInvul<=0){ g.hp-=e.dmg*dt*0.6; if(g.hp<=0){g.hp=0;loseGame();return;} }
-    // 특기 발동 (보스 유형별 성향)
+    // 특기 발동 (보스 유형별 성향 + 고유 시그니처)
     if(e.atkCd<=0){
       const bt=e.bossType||'balanced';
       const r=Math.random();
@@ -1422,32 +1429,85 @@ function updateBoss(e, dx, dy, d, dt){
         else if(type==='slamWind') bossToast(e,'분쇄!');
         else if(type==='volley'){ e.volleyN=0; bossToast(e,'난사!'); }
         else if(type==='blink'){ bossToast(e,'환영!'); }
+        else if(type==='rampage'){ e.rampageN=0; bossToast(e,'맹공!'); }       // rusher 시그니처
+        else if(type==='ringfire'){ e.ringN=0; bossToast(e,'천공난사!'); }      // archer 시그니처
+        else if(type==='crossfire'){ e.crossN=0; bossToast(e,'만천화우!'); }    // master 시그니처
       };
       if(bt==='rusher'){
-        // 돌진·강타 위주, 난사 거의 안 함
-        if(d>150 && r<0.6) pick('telegraph');
+        // 연속 돌진(맹공) + 강타. 난사 안 함
+        if(d>150 && r<0.45) pick('telegraph');
+        else if(r<0.75) pick('rampage');   // 시그니처: 3연속 돌진
         else pick('slamWind');
-        e.atkCd=2.2;  // 자주 공격
+        e.atkCd=2.0;
       } else if(bt==='archer'){
-        // 난사 위주, 거리 유지
-        if(r<0.7) pick('volley');
-        else if(d>200) pick('telegraph');
-        else pick('slamWind');
-        e.atkCd=2.6;
+        // 원형 탄막(천공난사) + 저격. 근접 시 강타로 쫓아냄
+        if(r<0.55) pick('ringfire');   // 시그니처: 사방 화살 링
+        else if(r<0.8) pick('volley');
+        else if(d<180) pick('slamWind');
+        else pick('telegraph');
+        e.atkCd=2.4;
       } else if(bt==='master'){
-        // 전부 사용 + 텔레포트, 빠른 쿨다운
-        if(r<0.28) pick('telegraph');
-        else if(r<0.52) pick('slamWind');
-        else if(r<0.76) pick('volley');
-        else pick('blink');
-        e.atkCd=1.8;  // 최강 보스는 특기 빈도 높음
+        // 십자 탄막(만천화우) + 텔레포트 + 전부. 최다 빈도
+        if(r<0.3) pick('crossfire');   // 시그니처: 회전 십자 탄막
+        else if(r<0.5) pick('blink');
+        else if(r<0.68) pick('telegraph');
+        else if(r<0.84) pick('slamWind');
+        else pick('volley');
+        e.atkCd=1.6;
       } else {
-        // balanced (기존)
         if(d>160 && r<0.45) pick('telegraph');
         else if(r<0.78) pick('slamWind');
         else pick('volley');
         e.atkCd=2.8;
       }
+    }
+  }
+  else if(e.state==='rampage'){
+    // rusher 시그니처: 짧은 간격으로 3연속 돌진 (예고 짧음)
+    e.rampageT=(e.rampageT||0)+dt;
+    if(e.rampageT<0.35){ /* 짧은 조준 */ e.telegraphDir=Math.atan2(dy,dx); e.chargeDir=e.telegraphDir; }
+    else {
+      e.rampageT=0; e.rampageN=(e.rampageN||0)+1;
+      // 돌진 실행 (즉발)
+      const cs=e.spd*8, cd=e.chargeDir;
+      e.dashVx=Math.cos(cd)*cs; e.dashVy=Math.sin(cd)*cs; e.dashT=0.35;
+      e.state='rampageDash';
+    }
+  }
+  else if(e.state==='rampageDash'){
+    e.dashT-=dt;
+    e.x+=e.dashVx*dt; e.y+=e.dashVy*dt;
+    e.x=Math.max(30,Math.min(g.worldW-30,e.x)); e.y=Math.max(30,Math.min(g.worldH-30,e.y));
+    if(d<e.r+24 && g.buffInvul<=0){ g.hp-=e.dmg; SFX.playerHurt(); camShake=2.5; if(g.hp<=0){g.hp=0;loseGame();return;} }
+    for(let i=0;i<3;i++) g.particles.push({x:e.x,y:e.y,vx:(Math.random()-.5)*100,vy:(Math.random()-.5)*100,life:0.3,col:'#ff8a4a',r:4});
+    if(e.dashT<=0){
+      if((e.rampageN||0)<3){ e.state='rampage'; e.rampageT=0; }  // 다음 돌진
+      else { e.state='chase'; e.atkCd=2.4; }
+    }
+  }
+  else if(e.state==='ringfire'){
+    // archer 시그니처: 사방으로 회전하는 화살 링 (3파)
+    e.ringT=(e.ringT||0)+dt;
+    if(e.ringT>0.35){
+      e.ringT=0; e.ringN=(e.ringN||0)+1;
+      const n=12, off=e.ringN*0.26;   // 파마다 회전
+      for(let i=0;i<n;i++){ const a=(i/n)*Math.PI*2+off;
+        g.eProjectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*230,vy:Math.sin(a)*230,dmg:e.dmg*0.45,life:3.2,dead:false}); }
+      camShake=1;
+      if((e.ringN||0)>=3){ e.state='chase'; e.atkCd=2.8; }
+    }
+  }
+  else if(e.state==='crossfire'){
+    // master 시그니처: 회전하는 십자(4방) 탄막을 뿌리며 전진 (만천화우)
+    e.crossT=(e.crossT||0)+dt;
+    e.crossAng=(e.crossAng||0)+dt*2.2;   // 회전
+    // 천천히 플레이어 추격
+    e.x += dx/d*e.spd*0.4*dt; e.y += dy/d*e.spd*0.4*dt;
+    if(e.crossT>0.12){
+      e.crossT=0; e.crossN=(e.crossN||0)+1;
+      for(let k=0;k<4;k++){ const a=e.crossAng+k*(Math.PI/2);
+        g.eProjectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260,dmg:e.dmg*0.4,life:3.0,dead:false}); }
+      if((e.crossN||0)>=18){ e.state='chase'; e.atkCd=2.2; }
     }
   }
   else if(e.state==='blink'){
@@ -1665,7 +1725,7 @@ function nearestEnemy(){
 function hitEnemy(e,dmg,forceCrit){
   const g=G; let d=dmg; let isCrit=false;
   if(forceCrit || (g.crit>0 && Math.random()<g.crit)){ d*=2; isCrit=true; }
-  d=Math.round(d); e.hp-=d; e.hitFlash=0.12;
+  d=Math.round(d); e.hp-=d; e.hitFlash=0.12; SFX.enemyHit();
   g.damageTexts.push({x:e.x,y:e.y-e.r,v:d,life:0.5,crit:isCrit});
   if(isCrit && !e.dead) critEffect(e);
   if(e.hp<=0 && !e.dead){
