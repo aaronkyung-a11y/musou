@@ -175,6 +175,11 @@
   .up-card .up-t{ font-size:18px; font-weight:800; margin-top:5px; }
   .up-card .up-d{ font-size:13px; color:#c9b78c; margin-top:7px; line-height:1.4; }
   .up-card .up-lv{ position:absolute; top:9px; right:11px; font-size:11px; font-weight:800; color:#9a8666; }
+  .up-card .up-hint{ position:absolute; bottom:8px; left:0; right:0; font-size:11px; font-weight:800; letter-spacing:.5px; text-shadow:0 1px 2px #000; }
+  .up-card.has-hint{ padding-bottom:24px; }
+  .up-card.has-hint::after{ content:''; position:absolute; inset:0; border-radius:16px; pointer-events:none;
+    box-shadow:inset 0 0 0 1px rgba(255,180,80,.35); }
+  .lvl-goal{ font-size:13px; font-weight:700; letter-spacing:.5px; margin:2px 0 12px; text-shadow:0 1px 2px #000; }
   .up-card.rar-r{ border-color:#4a9fe8; }
   .up-card.rar-e{ border-color:#c07ae8; box-shadow:0 0 16px rgba(192,122,232,.3); }
   .up-card.evo-card{ border-color:#ffd050; border-width:3px;
@@ -414,6 +419,7 @@
   <div class="screen" id="levelupScreen">
     <div class="lvl-head" id="lvlHead">LEVEL UP!</div>
     <div class="lvl-sub">강화를 하나 택하라</div>
+    <div class="lvl-goal" id="lvlGoal"></div>
     <div class="upgrade-row" id="upgradeRow"></div>
   </div>
 
@@ -438,7 +444,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v4.0";
+const GAME_VER = "v4.1";
 window.addEventListener('DOMContentLoaded', ()=>{
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -816,27 +822,27 @@ function metaStartLevelBonus(){ return META.levels['m_start']||0; }
    ========================================================= */
 const EVOLUTIONS=[
   { id:'evo_guanyu', hero:'관우', name:'적룡언월', ic:'🐲', d:'기본공격이 전방 화염 참격으로 진화',
-    req:{dmg:4, range:2}, apply:s=>{ s.evo.guanyu=true; } },
+    req:{dmg:3, range:1}, apply:s=>{ s.evo.guanyu=true; } },
   { id:'evo_zhaoyun', hero:'조운', name:'칠성용담', ic:'🌟', d:'창이 관통+분열 (2갈래로 갈라짐)',
-    req:{dmg:3, pierce:1}, apply:s=>{ s.evo.zhaoyun=true; } },
+    req:{dmg:2, pierce:1}, apply:s=>{ s.evo.zhaoyun=true; } },
   { id:'evo_zhangfei', hero:'장비', name:'만인지적', ic:'🐯', d:'기본공격 넉백이 광역 충격파로 진화',
-    req:{dmg:4, hp:3}, apply:s=>{ s.evo.zhangfei=true; } },
+    req:{dmg:3, hp:2}, apply:s=>{ s.evo.zhangfei=true; } },
   { id:'evo_lubu', hero:'여포', name:'천하무쌍', ic:'🀄', d:'회전 범위 대폭↑ + 크리티컬 상시',
-    req:{dmg:4, rate:3}, apply:s=>{ s.evo.lubu=true; } },
+    req:{dmg:3, rate:2}, apply:s=>{ s.evo.lubu=true; } },
   { id:'evo_huangzhong', hero:'황충', name:'백보천양', ic:'🎯', d:'화살 5발 + 전탄 관통',
-    req:{dmg:3, range:2}, apply:s=>{ s.evo.huangzhong=true; } },
+    req:{dmg:2, range:2}, apply:s=>{ s.evo.huangzhong=true; } },
   { id:'evo_taishici', hero:'태사자', name:'쌍극난무', ic:'🌀', d:'2연격이 4연격으로 진화',
-    req:{rate:3, dmg:2}, apply:s=>{ s.evo.taishici=true; } },
+    req:{rate:2, dmg:2}, apply:s=>{ s.evo.taishici=true; } },
   { id:'evo_xiahoudun', hero:'하후돈', name:'발안강격', ic:'👁️', d:'기본공격에 관통 참격 추가',
-    req:{dmg:4, cdr:2}, apply:s=>{ s.evo.xiahoudun=true; } },
+    req:{dmg:3, cdr:1}, apply:s=>{ s.evo.xiahoudun=true; } },
   { id:'evo_zhangliao', hero:'장료', name:'소요진격', ic:'🌊', d:'공격이 전방 돌진 관통으로 진화',
-    req:{dmg:3, spd:2}, apply:s=>{ s.evo.zhangliao=true; } },
+    req:{dmg:2, spd:2}, apply:s=>{ s.evo.zhangliao=true; } },
   { id:'evo_xuchu', hero:'허저', name:'광호격노', ic:'💪', d:'대도 범위·넉백 대폭↑',
-    req:{dmg:4, hp:3}, apply:s=>{ s.evo.xuchu=true; } },
+    req:{dmg:3, hp:2}, apply:s=>{ s.evo.xuchu=true; } },
   { id:'evo_sunce', hero:'손책', name:'소패왕패', ic:'⚡', d:'2연격 + 파동 발사',
-    req:{rate:3, dmg:2}, apply:s=>{ s.evo.sunce=true; } },
+    req:{rate:2, dmg:2}, apply:s=>{ s.evo.sunce=true; } },
   { id:'evo_ganning', hero:'감녕', name:'금범연사', ic:'🏹', d:'강궁 4발 연사 + 관통',
-    req:{dmg:3, rate:2}, apply:s=>{ s.evo.ganning=true; } },
+    req:{dmg:2, rate:2}, apply:s=>{ s.evo.ganning=true; } },
 ];
 // 진화 조건 충족 여부 (아직 진화 안 했고 조건 만족)
 function availableEvolution(g){
@@ -852,27 +858,27 @@ function availableEvolution(g){
    ========================================================= */
 const AWAKENINGS=[
   { id:'awk_guanyu', hero:'관우', name:'무신강림', ic:'🔥', d:'화염 참격이 전방위 화룡으로 · 대미지 대폭↑',
-    req:{dmg:6}, apply:s=>{ s.awk.guanyu=true; s.dmgMul*=1.35; s.rangeMul+=0.25; } },
+    req:{dmg:4}, apply:s=>{ s.awk.guanyu=true; s.dmgMul*=1.35; s.rangeMul+=0.25; } },
   { id:'awk_zhaoyun', hero:'조운', name:'상산무적', ic:'💫', d:'용담창이 4갈래 분열 + 관통 무한',
-    req:{dmg:5,pierce:2}, apply:s=>{ s.awk.zhaoyun=true; s.pierce+=99; s.dmgMul*=1.25; } },
+    req:{dmg:3,pierce:1}, apply:s=>{ s.awk.zhaoyun=true; s.pierce+=99; s.dmgMul*=1.25; } },
   { id:'awk_zhangfei', hero:'장비', name:'만부부당', ic:'🌋', d:'충격파가 상시 광역 지진으로 확대',
-    req:{dmg:6,hp:4}, apply:s=>{ s.awk.zhangfei=true; s.dmgMul*=1.3; s.rangeMul+=0.35; } },
+    req:{dmg:4,hp:3}, apply:s=>{ s.awk.zhangfei=true; s.dmgMul*=1.3; s.rangeMul+=0.35; } },
   { id:'awk_lubu', hero:'여포', name:'비장방천', ic:'🀄', d:'회전 참격 다중 링 · 크리 2.5배',
-    req:{dmg:6,rate:4}, apply:s=>{ s.awk.lubu=true; s.crit+=0.4; s.dmgMul*=1.2; s.rangeMul+=0.3; } },
+    req:{dmg:4,rate:3}, apply:s=>{ s.awk.lubu=true; s.crit+=0.4; s.dmgMul*=1.2; s.rangeMul+=0.3; } },
   { id:'awk_huangzhong', hero:'황충', name:'노장출사', ic:'🎯', d:'화살 8발 부채꼴 + 폭발탄',
-    req:{dmg:5,range:3}, apply:s=>{ s.awk.huangzhong=true; s.dmgMul*=1.3; s.pierce+=3; } },
+    req:{dmg:3,range:2}, apply:s=>{ s.awk.huangzhong=true; s.dmgMul*=1.3; s.pierce+=3; } },
   { id:'awk_taishici', hero:'태사자', name:'신정난무', ic:'🌀', d:'4연격이 8연 연속 난무로',
-    req:{rate:4,dmg:4}, apply:s=>{ s.awk.taishici=true; s.rateMul*=0.7; s.dmgMul*=1.2; } },
+    req:{rate:3,dmg:3}, apply:s=>{ s.awk.taishici=true; s.rateMul*=0.7; s.dmgMul*=1.2; } },
   { id:'awk_xiahoudun', hero:'하후돈', name:'담안수라', ic:'👁️', d:'관통 참격 3연 + 흡혈',
-    req:{dmg:6,cdr:3}, apply:s=>{ s.awk.xiahoudun=true; s.dmgMul*=1.3; s.vamp+=0.05; } },
+    req:{dmg:4,cdr:2}, apply:s=>{ s.awk.xiahoudun=true; s.dmgMul*=1.3; s.vamp+=0.05; } },
   { id:'awk_zhangliao', hero:'장료', name:'요진질풍', ic:'🌊', d:'돌진 관통이 연속 질주 폭풍으로',
-    req:{dmg:5,spd:3}, apply:s=>{ s.awk.zhangliao=true; s.dmgMul*=1.3; s.spdMul+=0.2; } },
+    req:{dmg:3,spd:2}, apply:s=>{ s.awk.zhangliao=true; s.dmgMul*=1.3; s.spdMul+=0.2; } },
   { id:'awk_xuchu', hero:'허저', name:'호치광란', ic:'💪', d:'대도 범위 최대 + 넉백 폭발',
-    req:{dmg:6,hp:4}, apply:s=>{ s.awk.xuchu=true; s.dmgMul*=1.35; s.rangeMul+=0.4; } },
+    req:{dmg:4,hp:3}, apply:s=>{ s.awk.xuchu=true; s.dmgMul*=1.35; s.rangeMul+=0.4; } },
   { id:'awk_sunce', hero:'손책', name:'소패패왕', ic:'⚡', d:'파동이 다중 확산 + 연격 강화',
-    req:{rate:4,dmg:4}, apply:s=>{ s.awk.sunce=true; s.dmgMul*=1.3; s.rateMul*=0.8; } },
+    req:{rate:3,dmg:3}, apply:s=>{ s.awk.sunce=true; s.dmgMul*=1.3; s.rateMul*=0.8; } },
   { id:'awk_ganning', hero:'감녕', name:'금범수적', ic:'🏹', d:'강궁 6발 연사 + 전탄 관통',
-    req:{dmg:5,rate:3}, apply:s=>{ s.awk.ganning=true; s.dmgMul*=1.3; s.pierce+=4; } },
+    req:{dmg:3,rate:2}, apply:s=>{ s.awk.ganning=true; s.dmgMul*=1.3; s.pierce+=4; } },
 ];
 // 각성 조건 충족 여부 (진화를 이미 마쳤고, 아직 각성 안 했고, 조건 만족)
 function availableAwakening(g){
@@ -883,6 +889,40 @@ function availableAwakening(g){
   if(!evoDone) return null;
   for(const [k,v] of Object.entries(awk.req)){ if((g.upLevels[k]||0) < v) return null; }
   return awk;
+}
+
+/* =========================================================
+   진화/각성 힌트 — 강화 카드 배지 + 요약 한 줄용
+   ========================================================= */
+const STAT_LABEL={ dmg:'무력', rate:'속공', range:'범위', spd:'이속', hp:'체력',
+  cdr:'전술', regen:'재생', ultc:'투기', magnet:'수집', pierce:'관통', vamp:'흡혈', crit:'급소' };
+// 현재 무장이 노리는 '다음 목표'(진화 미완료면 진화, 완료면 각성)와 req 반환. 이미 다 했으면 null.
+function nextMilestone(g){
+  const evoDone=EVOLUTIONS.some(e=> e.hero===g.hero.n && g._evoTaken?.[e.id]);
+  if(!evoDone){
+    const evo=EVOLUTIONS.find(e=> e.hero===g.hero.n && !g._evoTaken?.[e.id]);
+    if(evo) return {kind:'진화', name:evo.name, req:evo.req, col:'#ffd050'};
+  } else {
+    const awk=AWAKENINGS.find(a=> a.hero===g.hero.n && !g._awkTaken?.[a.id]);
+    if(awk) return {kind:'각성', name:awk.name, req:awk.req, col:'#ff7a4a'};
+  }
+  return null;
+}
+// 요약 한 줄 텍스트: "✦ 무신강림(각성) — 무력 4"
+function milestoneSummary(g){
+  const m=nextMilestone(g); if(!m) return null;
+  const parts=Object.entries(m.req).map(([k,v])=>{
+    const cur=Math.min(g.upLevels[k]||0, v);
+    return `${STAT_LABEL[k]||k} ${cur}/${v}`;
+  });
+  return { text:`${m.name}(${m.kind}) — ${parts.join(' · ')}`, col:m.col };
+}
+// 특정 강화 id가 다음 목표에 관련되면 진행 배지 텍스트 반환, 아니면 null
+function upgradeHint(g, upId){
+  const m=nextMilestone(g); if(!m) return null;
+  if(!(upId in m.req)) return null;
+  const need=m.req[upId], cur=Math.min(g.upLevels[upId]||0, need);
+  return { text:`${m.kind} ${cur}/${need}`, done:cur>=need, col:m.col };
 }
 
 /* =========================================================
@@ -2024,10 +2064,21 @@ function openLevelUp(){
   picks.forEach(u=>{
     const lv=(g.upLevels[u.id]||0);
     const c=document.createElement('div'); c.className='up-card rar-'+u.rar;
+    const hint=upgradeHint(g, u.id);
+    const badge = hint ? `<div class="up-hint" style="color:${hint.col}">${hint.done?'✓ ':'✦ '}${hint.text}</div>` : '';
+    if(hint) c.classList.add('has-hint');
     c.innerHTML=`<div class="up-lv">${lv>0?('Lv.'+lv+'→'+(lv+1)):'NEW'}</div>
-      <div class="up-ic">${u.ic}</div><div class="up-t">${u.t}</div><div class="up-d">${u.d}</div>`;
+      <div class="up-ic">${u.ic}</div><div class="up-t">${u.t}</div><div class="up-d">${u.d}</div>${badge}`;
     c.onclick=()=>takeUpgrade(u); row.appendChild(c);
   });
+  // 다음 목표(진화/각성) 요약 한 줄
+  const goalEl=$('lvlGoal');
+  if(awk || evo){ goalEl.textContent=''; goalEl.style.display='none'; }  // 지금 바로 가능하면 카드가 이미 있으니 요약 숨김
+  else {
+    const ms=milestoneSummary(g);
+    if(ms){ goalEl.innerHTML=`<span style="color:${ms.col}">✦ ${ms.text}</span>`; goalEl.style.display='block'; }
+    else { goalEl.textContent=''; goalEl.style.display='none'; }
+  }
   $('lvlHead').textContent=awk?'각성 가능!':(evo?'무기 진화 가능!':'LEVEL '+g.level); show('levelupScreen'); lastT=performance.now();
 }
 function takeUpgrade(u){ const g=G; g.upLevels[u.id]=(g.upLevels[u.id]||0)+1; u.eff(g); g._paused=false; show(null); lastT=performance.now(); }
