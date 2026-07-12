@@ -150,7 +150,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="無雙記">
-<meta name="description" content="삼국지 무장으로 즐기는 뱀서류 액션 로그라이크">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -384,6 +383,7 @@ function startGame(heroIdx){
     upLevels:{}, _paused:false,
     enemies:[], projectiles:[], eProjectiles:[], orbs:[], particles:[], damageTexts:[], slashes:[],
     wpnTimer:0, spawnTimer:0, gameOver:false, won:false,
+    swingT:0, swingDur:0.24, swingDir:0, swingType:'slash',
     nextLordAt:15, lordActive:false, animTick:0
   };
   resize(); G.px=W/2; G.py=H/2;
@@ -453,6 +453,7 @@ function update(dt){
   if(g.buffSpd>0) g.buffSpd-=dt;
   if(g.s1cd>0) g.s1cd-=dt;
   if(g.s2cd>0) g.s2cd-=dt;
+  if(g.swingT>0) g.swingT-=dt;
 
   // 이동
   let spd=h.spd*60*g.spdMul*(g.buffSpd>0?1.8:1);
@@ -628,20 +629,33 @@ function fireWeapon(){
   const range=w.range*g.rangeMul;
   if(w.type==='spin'){
     g.slashes.push({type:'spin', cx:g.px,cy:g.py, range, dmg, dir:0, half:Math.PI, age:0, dur:0.22, hitSet:new Set(), fx:{type:'spin',range}});
+    triggerSwing('spin', 0);
   } else if(w.type==='cone'){
     const dir=aimDir();
     g.slashes.push({type:'cone', cx:g.px,cy:g.py, range, dmg, dir, half:Math.PI*0.42, age:0, dur:0.18, hitSet:new Set(), fx:{type:'cone',range,dir}});
+    triggerSwing('slash', dir);
   } else if(w.type==='pierce'){
-    shootProj(aimDir(),520,dmg,range,8+g.pierce,'#e8e0c0',5);
+    const dir=aimDir();
+    shootProj(dir,520,dmg,range,8+g.pierce,'#e8e0c0',5);
+    triggerSwing('thrust', dir);
   } else if(w.type==='shoot'){
-    shootProj(aimDir(),620,dmg,range,1+g.pierce,'#ffe680',4);
+    const dir=aimDir();
+    shootProj(dir,620,dmg,range,1+g.pierce,'#ffe680',4);
+    triggerSwing('bow', dir);
   }
+}
+function triggerSwing(type, dir){
+  const g=G;
+  g.swingType=type; g.swingDir=dir; g.swingT=g.swingDur;
 }
 function useSkill1(){
   const g=G, h=g.hero;
   g.s1cd=h.s1.cd*g.cdrMul;
   const dmg=h.wpn.dmg*g.dmgMul*2.2;
   skillFxName(h.s1.name,'#7ac0ff');
+  // 큰 스윙 모션
+  const st = (h.wpn.type==='shoot')?'bow':(h.wpn.type==='pierce'?'thrust':'slash');
+  g.swingType=st; g.swingDir=aimDir(); g.swingT=g.swingDur*1.4;
   vib(20);
   switch(h.n){
     case '관우': case '여포':
@@ -991,12 +1005,104 @@ function drawHeroMounted(){
   // 투구
   ctx.beginPath(); ctx.arc(R*0.1,-R*0.8+bob,R*0.5,Math.PI,0); ctx.fillStyle=col; ctx.fill();
   ctx.beginPath(); ctx.arc(R*0.1,-R*1.3+bob,2.5,0,Math.PI*2); ctx.fillStyle='#e8c05a'; ctx.fill();
-  // 무기(뒤로 든 창/도)
-  ctx.strokeStyle='#d8d0b0'; ctx.lineWidth=3;
-  ctx.beginPath(); ctx.moveTo(R*0.5,-R*0.6+bob); ctx.lineTo(R*1.6,-R*1.4+bob); ctx.stroke();
+  // 무기 — 휘두르는 모션
+  drawWeaponSwing(R, bob, col);
   // 무적 버프 오라
   if(g.buffInvul>0){ ctx.globalAlpha=0.5+Math.sin(g.animTick*12)*0.2;
     ctx.strokeStyle='#7ac0ff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(R*0.1,-R*0.2+bob,R*1.6,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1; }
+  ctx.restore();
+}
+
+/* 무기 휘두르기 모션 — drawHeroMounted 로컬 좌표계(face 스케일 적용됨) 안에서 호출 */
+function drawWeaponSwing(R, bob, col){
+  const g=G;
+  // 어깨(무기 손잡이) 위치
+  const sx=R*0.35, sy=-R*0.55+bob;
+  // 스윙 진행도 0(시작)~1(끝). 없으면 대기 자세
+  const prog = g.swingT>0 ? 1-(g.swingT/g.swingDur) : -1;
+  const type = g.swingType;
+
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  if(prog<0){
+    // 대기: 무기를 비스듬히 세워 든 자세 (살짝 흔들림)
+    const idle=Math.sin(g.animTick*4)*0.06;
+    drawBlade(type, -0.9+idle, R, col, 1);
+    ctx.restore(); return;
+  }
+
+  if(type==='slash' || type==='spin'){
+    // 위(-2.4rad)에서 아래-앞(0.5rad)으로 내려베기, ease-out
+    const e=1-Math.pow(1-prog,2);
+    const ang=-2.4 + e*2.9;
+    // 잔상 트레일 (여러 각도 반투명)
+    for(let i=1;i<=4;i++){
+      const t=Math.max(0, e-i*0.12);
+      const a=-2.4+t*2.9;
+      drawBlade(type, a, R, col, 0.14*(4-i));
+    }
+    drawBlade(type, ang, R, col, 1);
+    // 참격 호 트레일
+    ctx.globalAlpha=0.5*(1-prog);
+    ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(0,0, R*1.5, -2.4, ang); ctx.stroke();
+    ctx.globalAlpha=1;
+  }
+  else if(type==='thrust'){
+    // 앞으로 찌르기: 0~0.5 전진, 0.5~1 복귀
+    const ext = prog<0.5 ? (prog/0.5) : (1-(prog-0.5)/0.5);
+    const reach = R*0.4 + ext*R*1.4;
+    ctx.save();
+    ctx.rotate(-0.15);
+    // 창대
+    ctx.strokeStyle='#7a5a34'; ctx.lineWidth=3.5;
+    ctx.beginPath(); ctx.moveTo(-R*0.3,0); ctx.lineTo(reach,0); ctx.stroke();
+    // 창날
+    ctx.fillStyle='#e8e0c8'; ctx.beginPath();
+    ctx.moveTo(reach,0); ctx.lineTo(reach-R*0.5,-R*0.18); ctx.lineTo(reach-R*0.35,0); ctx.lineTo(reach-R*0.5,R*0.18); ctx.closePath(); ctx.fill();
+    // 잔상
+    ctx.globalAlpha=0.4*ext; ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(reach-R*1.2,0); ctx.lineTo(reach,0); ctx.stroke();
+    ctx.globalAlpha=1;
+    ctx.restore();
+  }
+  else if(type==='bow'){
+    // 활 당겼다 놓기
+    const draw = prog<0.4 ? (prog/0.4) : (1-(prog-0.4)/0.6);
+    ctx.strokeStyle='#c9a05a'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(R*0.5, 0, R*0.9, -1.1, 1.1); ctx.stroke();
+    // 시위
+    ctx.strokeStyle='rgba(240,230,200,.8)'; ctx.lineWidth=1.2;
+    const bx=R*0.5+Math.cos(-1.1)*R*0.9, by=Math.sin(-1.1)*R*0.9;
+    const ex=R*0.5+Math.cos(1.1)*R*0.9, ey=Math.sin(1.1)*R*0.9;
+    const pull=R*(0.1 - draw*0.5);
+    ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(R*0.5+pull,0); ctx.lineTo(ex,ey); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* 칼/도 한 자루를 주어진 각도로 그림 */
+function drawBlade(type, ang, R, col, alpha){
+  ctx.save();
+  ctx.globalAlpha=alpha;
+  ctx.rotate(ang);
+  const len = (type==='spin') ? R*2.0 : R*1.8;
+  // 자루
+  ctx.strokeStyle='#5a3a22'; ctx.lineWidth=3.5;
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(len*0.32,0); ctx.stroke();
+  // 날 (청룡언월도풍: 끝이 넓어지는 곡도)
+  ctx.strokeStyle='#e2ddc8'; ctx.lineWidth=4.5;
+  ctx.beginPath(); ctx.moveTo(len*0.32,0); ctx.lineTo(len,0); ctx.stroke();
+  // 날 하이라이트
+  ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=1.6;
+  ctx.beginPath(); ctx.moveTo(len*0.34,-1); ctx.lineTo(len*0.98,-1); ctx.stroke();
+  // 언월도 갈고리 (spin 계열만)
+  if(type==='spin'){
+    ctx.fillStyle='#e2ddc8'; ctx.beginPath();
+    ctx.moveTo(len*0.78,0); ctx.quadraticCurveTo(len*0.95,-R*0.4, len*1.05,-R*0.12);
+    ctx.quadraticCurveTo(len*0.92,-R*0.02, len*0.78,0); ctx.fill();
+  }
   ctx.restore();
 }
 
