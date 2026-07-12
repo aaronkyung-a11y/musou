@@ -206,12 +206,8 @@
   @keyframes rot{ 0%,100%{transform:rotate(0)} 50%{transform:rotate(90deg)} }
 </style>
 <meta name="theme-color" content="#1a1208">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="無雙記">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 </head>
 <body>
 <div id="app">
@@ -682,7 +678,8 @@ function update(dt){
   for(const p of g.projectiles){
     if(p.dead) continue;
     p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
-    if(p.life<=0||p.x<-60||p.x>W+60||p.y<-60||p.y>H+60){ p.dead=true; continue; }
+    // 수명 다하거나 월드 밖으로 크게 벗어나면 제거 (화면이 아니라 월드 기준!)
+    if(p.life<=0 || p.x<-100 || p.x>g.worldW+100 || p.y<-100 || p.y>g.worldH+100){ p.dead=true; continue; }
     for(const e of g.enemies){
       if(e.dead||p.hitSet.has(e.id)) continue;
       if(Math.hypot(p.x-e.x,p.y-e.y)<e.r+p.r){
@@ -820,7 +817,13 @@ function fireWeapon(){
     triggerSwing('thrust', dir);
   } else if(w.type==='shoot'){
     const dir=aimDir();
-    shootProj(dir,620,dmg,range,1+g.pierce,'#ffe680',4);
+    // 명궁 다연사: 부채꼴로 3발 (레벨/관통에 따라 더 넓게)
+    const arrows=3;
+    const spread=0.28;
+    for(let i=0;i<arrows;i++){
+      const off=(i-(arrows-1)/2)*spread;
+      shootProj(dir+off,620,dmg,range,1+g.pierce,'#ffe680',4);
+    }
     triggerSwing('bow', dir);
   }
 }
