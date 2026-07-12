@@ -1,5 +1,5 @@
 /* 無雙記 Service Worker — 오프라인 캐시 */
-const CACHE = 'musou-v3.5';
+const CACHE = 'musou-v3.6';
 const ASSETS = [
   './',
   './index.html',
@@ -21,14 +21,26 @@ self.addEventListener('activate', e => {
   );
 });
 
-// 캐시 우선, 없으면 네트워크 (오프라인 완전 동작)
+// HTML/JS는 네트워크 우선(최신 유지), 그 외(이미지 등)는 캐시 우선
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
-      const copy = res.clone();
-      caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
-      return res;
-    }).catch(() => caches.match('./index.html')))
-  );
+  const url = e.request.url;
+  const isDoc = e.request.mode === 'navigate' || url.endsWith('.html') || url.endsWith('/') || url.endsWith('sw.js');
+  if (isDoc) {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
+        return res;
+      }).catch(() => caches.match(e.request).then(c => c || caches.match('./index.html')))
+    );
+  } else {
+    e.respondWith(
+      caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
+        return res;
+      }).catch(() => caches.match('./index.html')))
+    );
+  }
 });
