@@ -479,7 +479,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v4.4";
+const GAME_VER = "v4.5";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -2748,8 +2748,17 @@ function drawHeroMounted(){
   }
   // === 적토마 (옆모습 실루엣, 왼쪽 향함) ===
   const R=17;
-  const horseCol = g.buffSpd>0 ? '#d05a34' : '#7a3f26';
-  const horseDark = g.buffSpd>0 ? '#a03a1e' : '#5a2e1a';
+  // 무장별 명마 색: 여포/관우 적토마(적), 조운 백룡마(백), 장비 오추마(흑), 그 외 갈색
+  const HORSE_COL={
+    '여포':{base:'#c0392b', dark:'#8a1e12'},   // 적토마
+    '관우':{base:'#b5482f', dark:'#7a2416'},   // 적토마 계열(약간 톤 다름)
+    '조운':{base:'#e8e4dc', dark:'#a8a29a'},   // 백룡마
+    '장비':{base:'#3a3540', dark:'#1e1a22'},   // 오추마(흑)
+  };
+  const hc = HORSE_COL[h.n] || {base:'#7a3f26', dark:'#5a2e1a'};
+  // 속도 버프 시 각 말 색을 밝게(붉은 기운 대신 자기 색 강조)
+  const horseCol  = g.buffSpd>0 ? lightenHex(hc.base, 0.22) : hc.base;
+  const horseDark = g.buffSpd>0 ? lightenHex(hc.dark, 0.18) : hc.dark;
   const gallop = g.animTick*13;   // 질주 사이클
   drawWarhorse(R, bob, gallop, horseCol, horseDark);
   // 무장 — 그림이 있으면 그림, 없으면 코드 도트
@@ -2780,6 +2789,13 @@ function drawHeroMounted(){
 }
 
 /* 군마(적토마) 옆모습 — drawHeroMounted 로컬 좌표계, 왼쪽 향함 */
+/* hex 색을 t(0~1)만큼 흰색 쪽으로 밝게 */
+function lightenHex(hex, t){
+  const m=hex.replace('#',''); const n=parseInt(m,16);
+  let r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  r=Math.round(r+(255-r)*t); g=Math.round(g+(255-g)*t); b=Math.round(b+(255-b)*t);
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
 function drawWarhorse(R, bob, gallop, col, dark){
   const y0 = bob;
   const sw1 = Math.sin(gallop);
