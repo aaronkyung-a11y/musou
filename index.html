@@ -814,9 +814,26 @@ function preloadEnemyLordImages(){
   for(const name in ENEMY_LORD_SLUG){
     const img=new Image();
     img.onload=()=>{ ENEMY_LORD_IMG[name]=img; };
-    img.onerror=()=>{};
+    img.onerror=()=>{ setTimeout(()=>{ img.src='assets/'+ENEMY_LORD_SLUG[name]+'.png?r='+Date.now(); }, 800); };  // 실패 시 재시도
     img.src='assets/'+ENEMY_LORD_SLUG[name]+'.png';
   }
+}
+// 적장 초상화를 필요 시점에 확실히 확보 (전투/인트로 공용)
+const _lordImgTry={};
+function getLordImg(name){
+  // 이미 로드됨
+  let img = ENEMY_LORD_IMG[name] || HERO_IMG[name];
+  if(img && img.complete && img.naturalWidth>0) return img;
+  // 적장 슬러그가 있는데 아직 로드 안 됐으면 즉시 로딩 시작
+  const slug = ENEMY_LORD_SLUG[name] || HERO_SLUG[name];
+  if(slug && !_lordImgTry[name]){
+    _lordImgTry[name]=true;
+    const ni=new Image();
+    ni.onload=()=>{ if(ENEMY_LORD_SLUG[name]) ENEMY_LORD_IMG[name]=ni; else HERO_IMG[name]=ni; };
+    ni.onerror=()=>{ _lordImgTry[name]=false; };
+    ni.src='assets/'+slug+'.png';
+  }
+  return null;
 }
 const HERO_IMG={};        // name -> HTMLImageElement (로드 완료된 것만)
 function preloadHeroImages(){
@@ -2064,10 +2081,10 @@ function hideCombo(){ const el=$('comboBox'); if(el) el.className=''; }
    ========================================================= */
 function showBossIntro(lord, cb){
   const intro=$('bossIntro'), band=$('biBand');
-  // 초상화: 전용 적장 이미지 → 플레이어 무장 이미지 → 도트 SVG 순
-  const img = ENEMY_LORD_IMG[lord.n] || HERO_IMG[lord.n] || null;
-  const portraitHTML = img
-    ? `<img src="${img.src}" style="width:100%;height:100%;object-fit:cover;display:block;">`
+  // 초상화: 슬러그가 있으면 직접 URL로 표시(로딩 여부 무관), 없으면 도트 SVG
+  const slug = ENEMY_LORD_SLUG[lord.n] || HERO_SLUG[lord.n];
+  const portraitHTML = slug
+    ? `<img src="assets/${slug}.png" style="width:100%;height:100%;object-fit:cover;display:block;">`
     : heroSVG(lord,96);
   band.innerHTML=`<div class="bi-portrait">${portraitHTML}</div>
     <div class="bi-txt">
@@ -2210,11 +2227,12 @@ function drawEnemy(e,alpha){
       ctx.restore();
     }
 
-    // 보스 초상화: 전용 적장 이미지 우선, 없으면 플레이어 무장 초상화 재활용
-    let bimg = ENEMY_LORD_IMG[e.lordName] || HERO_IMG[e.lordName] || null;
+    // 보스 초상화: 전용 적장 이미지 우선, 없으면 플레이어 무장 초상화 재활용 (필요 시 즉시 로딩)
+    let bimg = getLordImg(e.lordName);
+    const imgReady = bimg && bimg.complete && bimg.naturalWidth>0;
     // 기마
     drawHorse(e.x, e.y+bob, e.r, flash?'#fff':e.col, flash);
-    if(bimg){
+    if(imgReady){
       // 초상화를 말 위에 크게
       const isz=e.r*2.6;
       ctx.save(); if(flash){ ctx.globalAlpha=alpha*0.6; }
