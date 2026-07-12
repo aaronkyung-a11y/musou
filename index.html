@@ -438,7 +438,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v3.9";
+const GAME_VER = "v4.0";
 window.addEventListener('DOMContentLoaded', ()=>{
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -1689,7 +1689,7 @@ function aimDir(){
   return G.facing>0?0:Math.PI;
 }
 function fireWeapon(){
-  const g=G, w=g.hero.wpn, hn=g.hero.n, ev=g.evo||{};
+  const g=G, w=g.hero.wpn, hn=g.hero.n, ev=g.evo||{}, aw=g.awk||{};
   const atkBuff=g.buffAtk>0?1.5:1;
   let dmg=w.dmg*g.dmgMul*atkBuff;
   let range=w.range*g.rangeMul;
@@ -1697,44 +1697,71 @@ function fireWeapon(){
   if(w.type==='spin'){
     // 여포는 초광역 회전, 그 외 표준
     let rMul = (hn==='여포')?1.3:(hn==='허저'?1.15:1.0);
-    // 진화: 여포 천하무쌍(범위+크리), 허저 광호격노(범위+넉백), 관우 적룡언월(화염참격)
     let knock=0, crit=false, col=null;
     if(hn==='여포' && ev.lubu){ rMul=1.7; crit=true; }
     if(hn==='허저' && ev.xuchu){ rMul=1.5; knock=20; }
     if(hn==='관우' && ev.guanyu){ rMul=1.35; dmg*=1.4; col='#ff6a3a'; }
-    const sl={type:'spin', cx:g.px,cy:g.py, range:range*rMul, dmg, dir:0, half:Math.PI, age:0, dur:0.22, hitSet:new Set(), crit, knock, fx:{type:'spin',range:range*rMul,col}};
+    // === 각성 시각/공격 강화 ===
+    if(hn==='관우' && aw.guanyu){ rMul=1.6; col='#ff3020'; }   // 진홍 화룡
+    if(hn==='여포' && aw.lubu){ rMul=2.0; crit=true; col='#c060ff'; }  // 보라 다중 링
+    if(hn==='허저' && aw.xuchu){ rMul=1.9; knock=35; col='#ffb040'; }
+    const sl={type:'spin', cx:g.px,cy:g.py, range:range*rMul, dmg, dir:0, half:Math.PI, age:0, dur:0.22, hitSet:new Set(), crit, knock, fx:{type:'spin',range:range*rMul,col,big:(aw.guanyu||aw.lubu||aw.xuchu)}};
     g.slashes.push(sl);
-    // 관우 진화: 전방 화염 참격 추가 발사
-    if(hn==='관우' && ev.guanyu){ const dir=aimDir();
-      shootProj(dir,600,dmg*1.2,range*2.2,4+g.pierce,'#ff7a3a',7); }
+    // 여포 각성: 안쪽 2겹째 링 추가
+    if(hn==='여포' && aw.lubu){
+      g.slashes.push({type:'spin',cx:g.px,cy:g.py,range:range*rMul*0.6,dmg:dmg*0.7,dir:0,half:Math.PI,age:0,dur:0.2,hitSet:new Set(),crit:true,fx:{type:'spin',range:range*rMul*0.6,col:'#e0a0ff'}});
+    }
+    // 관우 화염 참격 (진화/각성)
+    if(hn==='관우' && (ev.guanyu||aw.guanyu)){ const dir=aimDir();
+      const fcol=aw.guanyu?'#ff2810':'#ff7a3a';
+      shootProj(dir,600,dmg*(aw.guanyu?1.6:1.2),range*2.2,4+g.pierce,fcol,aw.guanyu?10:7);
+      // 각성: 좌우로도 화룡 발사 (전방위 느낌)
+      if(aw.guanyu){ shootProj(dir+0.5,560,dmg*1.2,range*1.9,4+g.pierce,fcol,9); shootProj(dir-0.5,560,dmg*1.2,range*1.9,4+g.pierce,fcol,9); auraBurst('#ff3020'); }
+    }
     triggerSwing('spin', 0);
   } else if(w.type==='cone'){
     const dir=aimDir();
     let hits = ((hn==='태사자'||hn==='손책'))?2:1;
-    // 진화: 태사자 4연격, 손책 파동, 하후돈 관통, 장료 돌진
     if(hn==='태사자' && ev.taishici) hits=4;
+    if(hn==='태사자' && aw.taishici) hits=8;   // 각성: 8연격
     if(hn==='손책' && ev.sunce) hits=3;
+    if(hn==='손책' && aw.sunce) hits=5;
     if(hits>1){
-      const per=dmg*(hits===2?0.6:0.45);
-      for(let k=0;k<hits;k++) setTimeout(()=>{ if(G){ const d2=aimDir(); G.slashes.push({type:'cone', cx:G.px,cy:G.py, range, dmg:per, dir:d2, half:Math.PI*0.42, age:0, dur:0.13, hitSet:new Set(), fx:{type:'cone',range,dir:d2}}); } }, k*75);
-      if(hn==='손책' && ev.sunce){ shootProj(dir,640,dmg*0.8,range*1.8,3,'#ff9a4a',6); } // 파동
+      const per=dmg*(hits<=2?0.6:(hits<=4?0.45:0.32));
+      const ccol=(aw.taishici||aw.sunce)?'#ff9020':null;
+      for(let k=0;k<hits;k++) setTimeout(()=>{ if(G){ const d2=aimDir(); G.slashes.push({type:'cone', cx:G.px,cy:G.py, range, dmg:per, dir:d2, half:Math.PI*0.42, age:0, dur:0.13, hitSet:new Set(), fx:{type:'cone',range,dir:d2,col:ccol}}); } }, k*(hits>=6?55:75));
+      if(hn==='손책' && ev.sunce){ shootProj(dir,640,dmg*0.8,range*1.8,3,'#ff9a4a',6); }
+      if(hn==='손책' && aw.sunce){ shootProj(dir+0.2,660,dmg*0.9,range*2.0,4,'#ffb020',7); shootProj(dir-0.2,660,dmg*0.9,range*2.0,4,'#ffb020',7); }
+      if(aw.taishici) auraBurst('#ff9020');
     } else if(hn==='장비'){
-      g.slashes.push({type:'cone', cx:g.px,cy:g.py, range, dmg, dir, half:Math.PI*0.55, age:0, dur:0.2, hitSet:new Set(), knock:12, fx:{type:'cone',range,dir}});
-      // 장비 진화: 광역 충격파
-      if(ev.zhangfei){ g.slashes.push({type:'spin',cx:g.px,cy:g.py,range:range*1.4,dmg:dmg*0.7,dir:0,half:Math.PI,age:0,dur:0.2,hitSet:new Set(),knock:20,fx:{type:'spin',range:range*1.4}}); }
+      const zcol=aw.zhangfei?'#ffb040':null;
+      g.slashes.push({type:'cone', cx:g.px,cy:g.py, range, dmg, dir, half:Math.PI*0.55, age:0, dur:0.2, hitSet:new Set(), knock:12, fx:{type:'cone',range,dir,col:zcol}});
+      if(ev.zhangfei){ g.slashes.push({type:'spin',cx:g.px,cy:g.py,range:range*1.4,dmg:dmg*0.7,dir:0,half:Math.PI,age:0,dur:0.2,hitSet:new Set(),knock:20,fx:{type:'spin',range:range*1.4,col:zcol}}); }
+      // 각성: 상시 광역 지진 링 (더 큼)
+      if(aw.zhangfei){ g.slashes.push({type:'spin',cx:g.px,cy:g.py,range:range*2.0,dmg:dmg*0.8,dir:0,half:Math.PI,age:0,dur:0.28,hitSet:new Set(),knock:30,fx:{type:'spin',range:range*2.0,col:'#ffb040',big:true}}); FX.shake(1.5); }
     } else {
       const half = (hn==='허저')?Math.PI*0.5:Math.PI*0.42;
       g.slashes.push({type:'cone', cx:g.px,cy:g.py, range, dmg, dir, half, age:0, dur:0.18, hitSet:new Set(), fx:{type:'cone',range,dir}});
-      // 하후돈 진화: 관통 참격 / 장료 진화: 돌진 관통
-      if(hn==='하후돈' && ev.xiahoudun){ shootProj(dir,560,dmg*0.9,range*2.4,6,'#7ab0ff',6); }
-      if(hn==='장료' && ev.zhangliao){ shootProj(dir,640,dmg*1.1,range*2.6,8,'#7ab0ff',6); }
+      // 하후돈: 관통 참격 (진화 1발 / 각성 3연)
+      if(hn==='하후돈' && aw.xiahoudun){ const hc='#ff5a5a'; for(let k=0;k<3;k++) setTimeout(()=>{ if(G){ const d=aimDir(); shootProj(d,600,dmg*0.9,range*2.6,8,hc,7); } }, k*70); auraBurst('#ff5a5a'); }
+      else if(hn==='하후돈' && ev.xiahoudun){ shootProj(dir,560,dmg*0.9,range*2.4,6,'#7ab0ff',6); }
+      // 장료: 돌진 관통 (진화 1발 / 각성 질주 폭풍 3연)
+      if(hn==='장료' && aw.zhangliao){ const lc='#40e0ff'; for(let k=0;k<3;k++) setTimeout(()=>{ if(G){ const d=aimDir(); shootProj(d,760,dmg*1.1,range*2.8,10,lc,8); } }, k*60); auraBurst('#40e0ff'); }
+      else if(hn==='장료' && ev.zhangliao){ shootProj(dir,640,dmg*1.1,range*2.6,8,'#7ab0ff',6); }
     }
     triggerSwing('slash', dir);
   } else if(w.type==='pierce'){
     const dir=aimDir();
-    shootProj(dir,520,dmg,range,8+g.pierce,'#e8e0c0',5);
-    // 조운 진화: 2갈래 분열
-    if(hn==='조운' && ev.zhaoyun){
+    const pcol=aw.zhaoyun?'#40c0ff':'#e8e0c0';
+    shootProj(dir,520,dmg,range,8+g.pierce,pcol,aw.zhaoyun?7:5);
+    if(hn==='조운' && aw.zhaoyun){
+      // 각성: 4갈래 분열
+      shootProj(dir+0.18,540,dmg*0.85,range,99,'#8ad0ff',6);
+      shootProj(dir-0.18,540,dmg*0.85,range,99,'#8ad0ff',6);
+      shootProj(dir+0.36,540,dmg*0.7,range,99,'#a0e0ff',6);
+      shootProj(dir-0.36,540,dmg*0.7,range,99,'#a0e0ff',6);
+      auraBurst('#40c0ff');
+    } else if(hn==='조운' && ev.zhaoyun){
       shootProj(dir+0.12,520,dmg*0.8,range,8+g.pierce,'#8ad0ff',5);
       shootProj(dir-0.12,520,dmg*0.8,range,8+g.pierce,'#8ad0ff',5);
     }
@@ -1742,17 +1769,28 @@ function fireWeapon(){
   } else if(w.type==='shoot'){
     const dir=aimDir();
     if(hn==='감녕'){
-      let n = ev.ganning?4:2;   // 진화: 4발
-      const pierce = ev.ganning?(4+g.pierce):(1+g.pierce);
-      for(let i=0;i<n;i++){ const off=(i-(n-1)/2)*0.14; shootProj(dir+off,700,dmg,range,pierce,'#ffb84a',5); }
+      let n = aw.ganning?6:(ev.ganning?4:2);   // 각성: 6발
+      const pierce = aw.ganning?(6+g.pierce):(ev.ganning?(4+g.pierce):(1+g.pierce));
+      const acol = aw.ganning?'#ff8020':'#ffb84a';
+      for(let i=0;i<n;i++){ const off=(i-(n-1)/2)*0.13; shootProj(dir+off,720,dmg,range,pierce,acol,aw.ganning?6:5); }
+      if(aw.ganning) auraBurst('#ff8020');
     } else {
-      let arrows = (hn==='황충'&&ev.huangzhong)?5:3;   // 황충 진화: 5발
-      const pierce = (hn==='황충'&&ev.huangzhong)?(4+g.pierce):(1+g.pierce);
-      const spread=0.26;
-      for(let i=0;i<arrows;i++){ const off=(i-(arrows-1)/2)*spread; shootProj(dir+off,620,dmg,range,pierce,'#ffe680',4); }
+      let arrows = (hn==='황충'&&aw.huangzhong)?8:((hn==='황충'&&ev.huangzhong)?5:3);   // 각성: 8발
+      const pierce = (hn==='황충'&&(aw.huangzhong||ev.huangzhong))?(4+g.pierce):(1+g.pierce);
+      const acol = (hn==='황충'&&aw.huangzhong)?'#ff9020':'#ffe680';
+      const spread=(hn==='황충'&&aw.huangzhong)?0.20:0.26;
+      for(let i=0;i<arrows;i++){ const off=(i-(arrows-1)/2)*spread; shootProj(dir+off,640,dmg,range,pierce,acol,aw.huangzhong?5:4); }
+      // 황충 각성: 중앙 폭발탄
+      if(hn==='황충'&&aw.huangzhong){ shootProj(dir,600,dmg*1.5,range,3,'#ff5020',8); auraBurst('#ff9020'); }
     }
     triggerSwing('bow', dir);
   }
+}
+/* 각성 발동 시 주인공 주위에 오라 파티클 분출 */
+function auraBurst(col){
+  const g=G; if(!g) return;
+  for(let i=0;i<10;i++){ const a=Math.random()*Math.PI*2, sp=60+Math.random()*120;
+    g.particles.push({x:g.px,y:g.py,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.3+Math.random()*0.3,col,r:2+Math.random()*3}); }
 }
 function triggerSwing(type, dir){
   const g=G;
@@ -2002,7 +2040,15 @@ function takeEvolution(evo){
 function takeAwakening(awk){
   const g=G; g._awkTaken[awk.id]=true; awk.apply(g);
   SFX.fanfare(); FX.impactUltStart();
-  skillFxName(awk.name+' 각성!!', '#ff8040');
+  // 각성 순간 강렬한 연출: 화면 플래시 + 대량 오라 폭발
+  const fl=$('fxFlash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
+  const AWK_COL={ '관우':'#ff3020','조운':'#40c0ff','장비':'#ffb040','여포':'#c060ff','황충':'#ff9020',
+    '태사자':'#ff9020','하후돈':'#ff5a5a','장료':'#40e0ff','허저':'#ffb040','손책':'#ffb020','감녕':'#ff8020' };
+  const ac=AWK_COL[g.hero.n]||'#ffd050';
+  for(let i=0;i<40;i++){ const a=Math.random()*Math.PI*2, sp=100+Math.random()*320;
+    g.particles.push({x:g.px,y:g.py,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.5+Math.random()*0.6,col:(i%2?ac:'#fff'),r:3+Math.random()*4}); }
+  vib([50,40,90,40,120]);
+  skillFxName(awk.name+' 각성!!', ac);
   g._paused=false; show(null); lastT=performance.now();
 }
 
@@ -2562,6 +2608,29 @@ function drawHeroMounted(){
   // 그림자
   ctx.globalAlpha=1;
   ctx.beginPath(); ctx.ellipse(0,28,30,7,0,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fill();
+  // === 각성 오라 (해당 무장이 각성했으면 상시 표시) ===
+  const awkOn = g.awk && g.awk[HERO_SLUG[h.n]];
+  if(awkOn){
+    const AWK_COL={ '관우':'#ff3020','조운':'#40c0ff','장비':'#ffb040','여포':'#c060ff','황충':'#ff9020',
+      '태사자':'#ff9020','하후돈':'#ff5a5a','장료':'#40e0ff','허저':'#ffb040','손책':'#ffb020','감녕':'#ff8020' };
+    const ac=AWK_COL[h.n]||'#ffd050';
+    const pulse=0.5+0.5*Math.sin(g.animTick*6);
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    // 이중 오라 링
+    ctx.globalAlpha=0.25+pulse*0.25;
+    ctx.beginPath(); ctx.ellipse(0,20,38+pulse*6,12+pulse*2,0,0,Math.PI*2);
+    ctx.strokeStyle=ac; ctx.lineWidth=3; ctx.stroke();
+    ctx.globalAlpha=0.12+pulse*0.12;
+    ctx.beginPath(); ctx.ellipse(0,18,50+pulse*8,16+pulse*3,0,0,Math.PI*2);
+    ctx.strokeStyle=ac; ctx.lineWidth=2; ctx.stroke();
+    // 상승 오라 입자
+    for(let i=0;i<3;i++){ const t=(g.animTick*1.5+i*0.33)%1; const ang=i*2.1+g.animTick*2;
+      const ox=Math.cos(ang)*26, oy=18-t*44;
+      ctx.globalAlpha=(1-t)*0.6;
+      ctx.beginPath(); ctx.arc(ox,oy,2.5,0,Math.PI*2); ctx.fillStyle=ac; ctx.fill(); }
+    ctx.restore();
+  }
   // === 적토마 (옆모습 실루엣, 왼쪽 향함) ===
   const R=17;
   const horseCol = g.buffSpd>0 ? '#d05a34' : '#7a3f26';
