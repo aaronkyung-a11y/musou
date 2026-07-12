@@ -9,7 +9,7 @@
   :root{ --gold:#e8c05a; --shu:#3f8f5f; --wei:#4a6fa5; --wu:#c0392b; --other:#8e7cc3; }
   html,body{ height:100%; background:#0a0806; overflow:hidden; overscroll-behavior:none;
     font-family:-apple-system,"Noto Sans KR","Malgun Gothic",sans-serif; color:#f3e9d2; touch-action:none; }
-  #app{ position:fixed; inset:0; }
+  #app{ position:fixed; inset:0; touch-action:none; }
   canvas{ display:block; width:100%; height:100%; background:#1a1208; }
 
   .screen{ position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
@@ -63,7 +63,7 @@
 
   /* 스킬 버튼 그룹 (우하단) */
   .skill-group{ position:absolute; bottom:12px; right:12px; display:flex; align-items:flex-end; gap:10px; pointer-events:none; }
-  .skill-btn{ position:relative; border-radius:50%; overflow:hidden; pointer-events:auto; cursor:pointer;
+  .skill-btn{ position:relative; border-radius:50%; overflow:hidden; pointer-events:none; cursor:pointer;
     touch-action:none;
     display:flex; flex-direction:column; align-items:center; justify-content:center; }
   .skill-btn .sb-ic{ font-size:24px; z-index:2; }
@@ -93,12 +93,11 @@
   @keyframes toastAnim{ 0%{opacity:0;transform:translate(-50%,-8px)} 12%,72%{opacity:1;transform:translate(-50%,0)} 100%{opacity:0;transform:translate(-50%,-8px)} }
   @keyframes sbPulse{ 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
 
-  /* 조이스틱 */
-  #joyZone{ position:absolute; left:0; top:0; bottom:0; width:55%; z-index:8; pointer-events:auto; }
+  /* 조이스틱 (시각 표시만, 터치는 #app이 처리) */
   #joyBase{ position:absolute; width:130px; height:130px; border-radius:50%; border:2px solid rgba(232,192,90,.3);
-    background:rgba(0,0,0,.2); display:none; z-index:9; }
+    background:rgba(0,0,0,.2); display:none; z-index:9; pointer-events:none; }
   #joyStick{ position:absolute; width:54px; height:54px; border-radius:50%;
-    background:radial-gradient(circle at 40% 35%, rgba(232,192,90,.7), rgba(140,110,50,.5)); display:none; z-index:9; }
+    background:radial-gradient(circle at 40% 35%, rgba(232,192,90,.7), rgba(140,110,50,.5)); display:none; z-index:9; pointer-events:none; }
 
   /* 레벨업 */
   #levelupScreen{ background:rgba(10,6,4,.92); }
@@ -222,7 +221,6 @@
 
   <div id="joyBase"></div>
   <div id="joyStick"></div>
-  <div id="joyZone"></div>
 
   <div id="fxFlash"></div>
   <div id="critVig"></div>
@@ -452,40 +450,59 @@ function startGame(heroIdx){
 function endLoop(){ running=false; if(rafId) cancelAnimationFrame(rafId); rafId=null; }
 
 /* =========================================================
-   입력: 조이스틱 + 스킬 버튼
+   입력: 통합 멀티터치 (각 손가락 독립 추적)
+   화면 어디든: 버튼 위면 스킬, 아니면 조이스틱(왼쪽 우선)
    ========================================================= */
-const joyZone=$('joyZone'), joyBase=$('joyBase'), joyStick=$('joyStick');
-let joyActive=false, joyId=null, joyCx=0, joyCy=0, joyDx=0, joyDy=0;
+const joyBase=$('joyBase'), joyStick=$('joyStick');
+let joyId=null, joyCx=0, joyCy=0, joyDx=0, joyDy=0;
 const JOY_R=65;
-joyZone.addEventListener('pointerdown', e=>{
+// 각 버튼의 화면 영역을 반환
+function btnHit(x,y){
+  for(const id of ['ultBtn','skill1Btn','skill2Btn']){
+    const el=$(id); if(!el) continue;
+    const r=el.getBoundingClientRect();
+    // 원형 버튼이라 중심 거리로 판정 (여유 8px)
+    const cx=r.left+r.width/2, cy=r.top+r.height/2;
+    if(Math.hypot(x-cx,y-cy) <= r.width/2+8) return id;
+  }
+  return null;
+}
+function triggerSkill(id){
+  if(!G || G._paused || G.gameOver) return;
+  if(id==='ultBtn'){ if(G.ultReady) fireUlt(); }
+  else if(id==='skill1Btn'){ if(G.s1cd<=0) useSkill1(); }
+  else if(id==='skill2Btn'){ if(G.s2cd<=0) useSkill2(); }
+}
+
+const inputSurface = document.getElementById('app');
+inputSurface.addEventListener('pointerdown', e=>{
   if(!running||!G||G.gameOver||G._paused) return;
-  joyActive=true; joyId=e.pointerId; joyCx=e.clientX; joyCy=e.clientY;
-  joyBase.style.display='block'; joyStick.style.display='block';
-  joyBase.style.left=(joyCx-JOY_R)+'px'; joyBase.style.top=(joyCy-JOY_R)+'px';
-  joyStick.style.left=(joyCx-27)+'px'; joyStick.style.top=(joyCy-27)+'px';
-});
-joyZone.addEventListener('pointermove', e=>{
-  if(!joyActive||e.pointerId!==joyId) return;
+  // UI 스크린(메뉴 등)이 떠 있으면 무시
+  if(document.querySelector('.screen.on')) return;
+  const bid=btnHit(e.clientX,e.clientY);
+  if(bid){ e.preventDefault(); triggerSkill(bid); return; }  // 버튼: 즉시 발동, 조이스틱 안 잡음
+  // 조이스틱: 이미 잡은 손가락이 없을 때만
+  if(joyId===null){
+    joyId=e.pointerId; joyCx=e.clientX; joyCy=e.clientY;
+    joyBase.style.display='block'; joyStick.style.display='block';
+    joyBase.style.left=(joyCx-JOY_R)+'px'; joyBase.style.top=(joyCy-JOY_R)+'px';
+    joyStick.style.left=(joyCx-27)+'px'; joyStick.style.top=(joyCy-27)+'px';
+  }
+}, {passive:false});
+inputSurface.addEventListener('pointermove', e=>{
+  if(e.pointerId!==joyId) return;
   let dx=e.clientX-joyCx, dy=e.clientY-joyCy; const dist=Math.hypot(dx,dy);
   if(dist>JOY_R){ dx=dx/dist*JOY_R; dy=dy/dist*JOY_R; }
   joyDx=dx/JOY_R; joyDy=dy/JOY_R;
   joyStick.style.left=(joyCx+dx-27)+'px'; joyStick.style.top=(joyCy+dy-27)+'px';
-});
-function joyEnd(e){ if(e.pointerId!==joyId) return; joyActive=false; joyId=null; joyDx=0; joyDy=0;
-  joyBase.style.display='none'; joyStick.style.display='none'; }
-joyZone.addEventListener('pointerup', joyEnd);
-joyZone.addEventListener('pointercancel', joyEnd);
-
-function bindSkillBtn(id, fn){
-  const el=$(id);
-  el.addEventListener('pointerdown', e=>{
-    e.preventDefault(); e.stopPropagation();
-    if(G && !G._paused) fn();
-  });
+}, {passive:false});
+function joyEnd(e){
+  if(e.pointerId!==joyId) return;
+  joyId=null; joyDx=0; joyDy=0;
+  joyBase.style.display='none'; joyStick.style.display='none';
 }
-bindSkillBtn('skill1Btn', ()=>{ if(G.s1cd<=0) useSkill1(); });
-bindSkillBtn('skill2Btn', ()=>{ if(G.s2cd<=0) useSkill2(); });
-bindSkillBtn('ultBtn', ()=>{ if(G.ultReady) fireUlt(); });
+inputSurface.addEventListener('pointerup', joyEnd);
+inputSurface.addEventListener('pointercancel', joyEnd);
 
 /* =========================================================
    메인 루프
@@ -717,10 +734,12 @@ function useSkill1(){
   g.s1cd=h.s1.cd*g.cdrMul;
   const dmg=h.wpn.dmg*g.dmgMul*2.2;
   skillFxName(h.s1.name,'#7ac0ff');
-  // 큰 스윙 모션
+  // 큰 스윙 모션 + 순간 임팩트(살짝 줌+흔들림+슬로우)
   const st = (h.wpn.type==='shoot')?'bow':(h.wpn.type==='pierce'?'thrust':'slash');
-  g.swingType=st; g.swingDir=aimDir(); g.swingT=g.swingDur*1.4;
-  vib(20);
+  g.swingType=st; g.swingDir=aimDir(); g.swingT=g.swingDur*1.8;
+  timeScale=0.5; zoomTarget=1.25; camShake=1.2;
+  clearTimeout(window._sk1T); window._sk1T=setTimeout(()=>{ if(timeScale<1){timeScale=1;} zoomTarget=1; }, 180);
+  vib([25,20,40]);
   switch(h.n){
     case '관우': case '여포':
       g.slashes.push({type:'spin',cx:g.px,cy:g.py,range:150*g.rangeMul,dmg,dir:0,half:Math.PI,age:0,dur:0.3,hitSet:new Set(),knock:24,fx:{type:'spin',range:150*g.rangeMul,big:true}});
@@ -746,7 +765,12 @@ function useSkill2(){
   const g=G, h=g.hero;
   g.s2cd=h.s2.cd*g.cdrMul;
   skillFxName(h.s2.name,'#ff9a6a');
-  vib(20);
+  // 임팩트
+  const st2 = (h.wpn.type==='shoot')?'bow':(h.wpn.type==='pierce'?'thrust':'slash');
+  g.swingType=st2; g.swingDir=aimDir(); g.swingT=g.swingDur*1.6;
+  timeScale=0.5; zoomTarget=1.25; camShake=1.4;
+  clearTimeout(window._sk2T); window._sk2T=setTimeout(()=>{ if(timeScale<1){timeScale=1;} zoomTarget=1; }, 180);
+  vib([25,20,40]);
   switch(h.n){
     case '관우': g.buffInvul=3; g.buffAtk=3; break;
     case '여포': g.buffSpd=4; g.buffAtk=4; break;
@@ -870,6 +894,7 @@ function fireUlt(){
   g.ultReady=false; g.ultCharge=0;
   const ult=g.hero.ult;
   vib([40,30,60,30,90]);
+  g.ultPose=1;   // 필살기 치켜든 포즈 (freeze 동안 유지)
 
   // === 1단계: 멈춤(freeze) + 줌인 + 기술명 ===
   timeScale=0;            // 게임 시간 완전 정지
@@ -885,6 +910,9 @@ function fireUlt(){
 function ultBurst(){
   const g=G; if(!g||g.gameOver) return;
   // === 2단계: 폭발 ===
+  g.ultPose=0;
+  // 무장이 치켜든 무기를 내려치는 큰 스윙
+  g.swingType='slash'; g.swingDir=0; g.swingT=g.swingDur*2.0;
   const fl=$('fxFlash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
   timeScale=0.35;         // 슬로우모션으로 폭발 감상
   zoomTarget=1.15;        // 살짝 빠지며 전장 보여줌
@@ -1234,8 +1262,28 @@ function drawWeaponSwing(R, bob, col){
   ctx.save();
   ctx.translate(sx, sy);
 
+  // 필살기 치켜든 포즈 (freeze 동안)
+  if(g.ultPose){
+    // 무기를 머리 위로 수직에 가깝게 치켜듦 + 진동
+    const shiver=Math.sin(g.animTick*40)*0.04;
+    // 금빛 기 오라
+    ctx.save();
+    ctx.globalAlpha=0.4+Math.sin(g.animTick*20)*0.2;
+    const grd=ctx.createRadialGradient(0,-R*0.5,2,0,-R*0.5,R*3.2);
+    grd.addColorStop(0,'rgba(255,230,140,.6)'); grd.addColorStop(1,'rgba(255,180,60,0)');
+    ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(0,-R*0.5,R*3.2,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+    // 치켜든 무기 (거의 수직, 위로)
+    drawBlade(type, -1.75+shiver, R*1.15, col, 1);
+    // 위로 솟는 빛줄기
+    ctx.strokeStyle='rgba(255,240,180,.7)'; ctx.lineWidth=4;
+    for(let i=0;i<3;i++){ const ox=(i-1)*R*0.4;
+      ctx.beginPath(); ctx.moveTo(ox,-R*1.2); ctx.lineTo(ox,-R*3.0-Math.sin(g.animTick*15+i)*R*0.3); ctx.stroke(); }
+    ctx.restore(); return;
+  }
+
   if(prog<0){
-    // 대기: 무기를 비스듬히 세워 든 자세 (살짝 흔들림)
+    // 대기: 무기를 비스듬히 세워 든 자세
     const idle=Math.sin(g.animTick*4)*0.06;
     drawBlade(type, -0.9+idle, R, col, 1);
     ctx.restore(); return;
