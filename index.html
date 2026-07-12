@@ -91,6 +91,35 @@
     font-size:14px; font-weight:700; color:#f0e0b0; opacity:0; white-space:nowrap; }
   #toast.go{ animation:toastAnim 2s ease-out; }
   @keyframes toastAnim{ 0%{opacity:0;transform:translate(-50%,-8px)} 12%,72%{opacity:1;transform:translate(-50%,0)} 100%{opacity:0;transform:translate(-50%,-8px)} }
+
+  /* 시나리오 스토리 화면 */
+  #storyScreen, #clearScreen{ position:absolute; inset:0; z-index:30; display:none;
+    align-items:center; justify-content:center; padding:20px; text-align:center;
+    background:radial-gradient(ellipse at 50% 40%, #241810, #0a0604 80%); }
+  #storyScreen.on, #clearScreen.on{ display:flex; }
+  .story-inner, .clear-inner{ max-width:600px; animation:storyIn .6s ease-out; }
+  @keyframes storyIn{ 0%{opacity:0;transform:translateY(20px)} 100%{opacity:1;transform:translateY(0)} }
+  .story-chapter{ font-size:20px; color:var(--gold); letter-spacing:8px; font-weight:800; }
+  .story-title{ font-size:40px; font-weight:900; margin:8px 0 20px; letter-spacing:4px;
+    background:linear-gradient(180deg,#f6e4a8,#c99a3a); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .story-intro{ font-size:17px; color:#e8dcc0; line-height:1.9; white-space:pre-line; margin-bottom:22px; }
+  .story-goal{ font-size:15px; color:#c9a05a; font-weight:700; border:1px solid #5a4a30; border-radius:10px;
+    padding:10px 18px; display:inline-block; margin-bottom:28px; }
+  .story-tap{ font-size:15px; color:#9a8666; animation:tapBlink 1.4s infinite; }
+  @keyframes tapBlink{ 0%,100%{opacity:.4} 50%{opacity:1} }
+  .clear-stamp{ font-size:64px; font-weight:900; color:var(--wu); border:5px solid var(--wu); border-radius:16px;
+    display:inline-block; padding:6px 28px; transform:rotate(-8deg); letter-spacing:8px;
+    text-shadow:0 0 20px rgba(192,57,43,.5); box-shadow:0 0 24px rgba(192,57,43,.3); margin-bottom:20px; }
+  .clear-title{ font-size:34px; font-weight:900; color:var(--gold); margin-bottom:8px; }
+  .clear-sub{ font-size:16px; color:#b09a72; margin-bottom:28px; }
+
+  /* 보스 체력바 (상단) */
+  #bossHpWrap{ position:absolute; top:44px; left:50%; transform:translateX(-50%); width:min(70%,420px); z-index:11;
+    display:none; text-align:center; }
+  #bossHpWrap.on{ display:block; }
+  #bossHpName{ font-size:14px; font-weight:800; color:#e8756a; margin-bottom:3px; text-shadow:0 1px 3px #000; }
+  #bossHpTrack{ height:12px; background:rgba(0,0,0,.6); border:1px solid #6a2a20; border-radius:6px; overflow:hidden; }
+  #bossHpFill{ height:100%; background:linear-gradient(90deg,#c0392b,#e8756a); width:100%; transition:width .2s; }
   @keyframes sbPulse{ 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
 
   /* 조이스틱 (시각 표시만, 터치는 #app이 처리) */
@@ -193,9 +222,13 @@
       <div class="xp-track"><div class="xp-fill" id="xpFill"></div></div>
       <div class="top-info">
         <span class="lvl-badge" id="lvlBadge">Lv.1</span>
-        <span class="timer" id="timer">00:00</span>
+        <span class="timer" id="progress">1장 · 0/60</span>
         <span class="kills" id="kills">☠ 0</span>
       </div>
+    </div>
+    <div id="bossHpWrap">
+      <div id="bossHpName"></div>
+      <div id="bossHpTrack"><div id="bossHpFill"></div></div>
     </div>
     <div class="hp-label" id="hpLabel"></div>
     <div class="hp-track"><div class="hp-fill" id="hpFill"></div></div>
@@ -229,6 +262,25 @@
   <div id="toast"></div>
 
   <div id="bossIntro"><div class="bi-band" id="biBand"></div></div>
+
+  <div id="storyScreen">
+    <div class="story-inner">
+      <div class="story-chapter" id="storyChapter"></div>
+      <div class="story-title" id="storyTitle"></div>
+      <div class="story-intro" id="storyIntro"></div>
+      <div class="story-goal" id="storyGoal"></div>
+      <div class="story-tap">화면을 눌러 출진</div>
+    </div>
+  </div>
+
+  <div id="clearScreen">
+    <div class="clear-inner">
+      <div class="clear-stamp">평정</div>
+      <div class="clear-title" id="clearTitle"></div>
+      <div class="clear-sub" id="clearSub"></div>
+      <div class="story-tap">화면을 눌러 진군</div>
+    </div>
+  </div>
 
   <div class="screen on" id="titleScreen">
     <div class="brush-title">無雙記</div>
@@ -316,8 +368,26 @@ const ENEMY_LORDS=[
 ];
 
 /* =========================================================
-   업그레이드
+   시나리오 — 삼국 정벌 (5장)
+   각 장: 도입 스토리 → 잡병 웨이브(목표 처치) → 보스 적장전
    ========================================================= */
+const SCENARIO=[
+  { chapter:"제 1 장", title:"황건적의 난",
+    intro:"황건적 무리가 관도를 휩쓸고 있다.\n백성을 지키기 위해 적진으로 돌격하라!",
+    killGoal:60, boss:{ n:"장보", f:"기타", quote:"태평도의 힘을 보아라!", hpMul:1.0, dmgMul:1.0 } },
+  { chapter:"제 2 장", title:"사수관 전투",
+    intro:"동탁의 맹장 화웅이 관문을 막아섰다.\n제후 연합군의 예봉이 되어라.",
+    killGoal:80, boss:{ n:"화웅", f:"기타", quote:"감히 누가 내 앞을 막느냐!", hpMul:1.4, dmgMul:1.2 } },
+  { chapter:"제 3 장", title:"백마의 결전",
+    intro:"하북의 명장 안량·문추가 이끄는 정예군.\n일기당천의 무용으로 돌파하라.",
+    killGoal:100, boss:{ n:"안량", f:"기타", quote:"내 칼 아래 살아남을 자 없다.", hpMul:1.8, dmgMul:1.4 } },
+  { chapter:"제 4 장", title:"장판교의 사투",
+    intro:"조조의 대군이 밀려온다.\n장료가 선봉에 섰다. 물러설 곳은 없다.",
+    killGoal:120, boss:{ n:"장료", f:"위", quote:"장문원의 위엄을 보여주마.", hpMul:2.3, dmgMul:1.6 } },
+  { chapter:"최종장", title:"천하를 건 일전",
+    intro:"천하 제일의 무장, 여포가 방천화극을 들고 나타났다.\n삼국 최강을 넘어서라!",
+    killGoal:150, boss:{ n:"여포", f:"기타", quote:"천하에 나를 당할 자 없다!", hpMul:3.2, dmgMul:2.0, final:true } }
+];
 const UPGRADES=[
   {id:'dmg', ic:'⚔️', rar:'c', t:'무력 증강', d:'공격 대미지 +18%', max:8, eff:s=>s.dmgMul+=0.18},
   {id:'rate',ic:'💨', rar:'c', t:'속공', d:'공격 속도 +15%', max:6, eff:s=>s.rateMul*=0.87},
@@ -434,7 +504,9 @@ function startGame(heroIdx){
     enemies:[], projectiles:[], eProjectiles:[], orbs:[], particles:[], damageTexts:[], slashes:[],
     wpnTimer:0, spawnTimer:0, gameOver:false, won:false,
     swingT:0, swingDur:0.24, swingDir:0, swingType:'slash',
-    nextLordAt:15, lordActive:false, animTick:0
+    lordActive:false, animTick:0, ultPose:0,
+    // 시나리오
+    chapter:0, chapterKills:0, bossActive:false, bossSpawned:false, stageClear:false
   };
   resize(); G.px=G.worldW/2; G.py=G.worldH/2;
   timeScale=1; zoom=1; zoomTarget=1; camShake=0;
@@ -446,8 +518,32 @@ function startGame(heroIdx){
   updateHUD();
   running=true; lastT=performance.now(); rafId=requestAnimationFrame(loop);
   checkOrient();
+  startChapter(0);   // 1장부터 시작
 }
 function endLoop(){ running=false; if(rafId) cancelAnimationFrame(rafId); rafId=null; }
+
+/* =========================================================
+   시나리오 진행
+   ========================================================= */
+function startChapter(idx){
+  const g=G; g.chapter=idx; g.chapterKills=0;
+  g.bossActive=false; g.bossSpawned=false; g.stageClear=false;
+  const sc=SCENARIO[idx];
+  // 도입 스토리 (일시정지)
+  g._paused=true;
+  showStoryScreen(sc, ()=>{ g._paused=false; lastT=performance.now(); });
+}
+function showStoryScreen(sc, cb){
+  const el=$('storyScreen');
+  $('storyChapter').textContent=sc.chapter;
+  $('storyTitle').textContent=sc.title;
+  $('storyIntro').textContent=sc.intro;
+  $('storyGoal').textContent='목표: 적병 '+sc.killGoal+'명 격파 후 적장 토벌';
+  el.classList.add('on');
+  // 탭하면 시작
+  const startFn=()=>{ el.classList.remove('on'); el.removeEventListener('pointerdown',startFn); cb&&cb(); };
+  el.addEventListener('pointerdown', startFn);
+}
 
 /* =========================================================
    입력: 통합 멀티터치 (각 손가락 독립 추적)
@@ -521,7 +617,6 @@ function loop(now){
 
 function update(dt){
   const g=G, h=g.hero; g.time+=dt; g.animTick+=dt;
-  if(g.time>=300 && !g.won){ g.won=true; winGame(); return; }
 
   // 버프 타이머
   if(g.buffInvul>0) g.buffInvul-=dt;
@@ -539,18 +634,22 @@ function update(dt){
 
   if(g.regen>0) g.hp=Math.min(g.maxHp,g.hp+g.regen*dt);
 
-  // 적 장수 등장 트리거
-  if(!g.lordActive && g.time>=g.nextLordAt){
-    spawnLord();
+  // 시나리오: 킬 목표 달성 시 보스 등장
+  const sc=SCENARIO[g.chapter];
+  if(!g.bossSpawned && g.chapterKills>=sc.killGoal){
+    spawnBoss(sc.boss);
   }
 
-  // 적 스폰 — 진삼국무쌍처럼 우글우글
+  // 적 스폰 — 보스 등장 전까지 잡병 러시 (보스전 중엔 소수만)
   g.spawnTimer-=dt;
-  const spawnInterval=Math.max(0.04, 0.40 - g.time*0.0016);
-  if(g.spawnTimer<=0 && g.enemies.length<220){   // 최대 동시 220 (성능 상한)
-    g.spawnTimer=spawnInterval;
-    const batch=4+Math.floor(g.time/16);
-    for(let i=0;i<batch;i++) spawnEnemy();
+  const spawnInterval=Math.max(0.04, 0.40 - g.chapter*0.03);
+  const spawnCap = g.bossActive ? 90 : 200;
+  if(g.spawnTimer<=0 && g.enemies.length<spawnCap && !g.bossSpawned || (g.bossActive && g.enemies.length<60)){
+    if(g.spawnTimer<=0){
+      g.spawnTimer=spawnInterval;
+      const batch=4+g.chapter*2;
+      for(let i=0;i<batch;i++) spawnEnemy();
+    }
   }
 
   // 기본공격 자동
@@ -657,7 +756,7 @@ function spawnEnemy(){
   let x=g.px+Math.cos(ang)*rad, y=g.py+Math.sin(ang)*rad;
   // 월드 밖이면 반대편으로 반사
   x=Math.max(20,Math.min(g.worldW-20,x)); y=Math.max(20,Math.min(g.worldH-20,y));
-  const tScale=1+g.time*0.012;
+  const tScale=1+g.chapter*0.35;
   const roll=Math.random();
   let kind='foot';
   if(roll<0.22) kind='cav';
@@ -671,22 +770,22 @@ function spawnEnemy(){
   g.enemies.push({ id:enemyIdSeq++, x,y, hp, maxHp:hp, r, spd, dmg, dead:false, deathAge:0,
     col:FAC_COLOR[fac], kind, hitFlash:0, xpv, shootCd:1.5+Math.random(), stun:0, lord:false, animP:Math.random()*6 });
 }
-function spawnLord(){
-  const g=G; g.lordActive=true; g._paused=true;
-  const lord=ENEMY_LORDS[Math.floor(Math.random()*ENEMY_LORDS.length)];
-  showBossIntro(lord, ()=>{
+function spawnBoss(boss){
+  const g=G; g.bossSpawned=true; g._paused=true;
+  showBossIntro(boss, ()=>{
     if(!G) return;
-    const ang=Math.random()*Math.PI*2, rad=Math.max(W,H)*0.5;
-    const tScale=1+g.time*0.02;
-    const hp=(400+g.time*6)*tScale;
+    const ang=Math.random()*Math.PI*2, rad=Math.max(W,H)/zoom*0.55;
+    // 필살기 여러 방 견디는 체력: 기본 4500 × 장별 배율
+    const baseHp=4500 + g.chapter*1500;
+    const hp=Math.round(baseHp * boss.hpMul);
     g.enemies.push({ id:enemyIdSeq++, x:g.px+Math.cos(ang)*rad, y:g.py+Math.sin(ang)*rad,
-      hp, maxHp:hp, r:26, spd:44+g.time*0.04, dmg:34, dead:false, deathAge:0,
-      col:FAC_COLOR[lord.f], kind:'cav', hitFlash:0, xpv:20, shootCd:99, stun:0,
-      lord:true, lordName:lord.n, animP:0 });
+      hp, maxHp:hp, r:34, spd:55+g.chapter*6, dmg:Math.round(30*boss.dmgMul), dead:false, deathAge:0,
+      col:FAC_COLOR[boss.f], kind:'boss', hitFlash:0, xpv:60, shootCd:99, stun:0,
+      lord:true, lordName:boss.n, isFinal:boss.final, animP:0,
+      chargeCd:3, atkCd:2 });
+    g.bossActive=true;
     g._paused=false;
     lastT=performance.now();
-    g.nextLordAt=g.time+Math.max(22, 40-g.time*0.02);
-    g.lordActive=false;
   });
 }
 
@@ -807,14 +906,15 @@ function hitEnemy(e,dmg,forceCrit){
   if(isCrit && !e.dead) critEffect(e);
   if(e.hp<=0 && !e.dead){
     e.dead=true; e.deathAge=0; g.kills++;
+    if(!e.lord) g.chapterKills++;   // 잡병만 진행도에 카운트
     g.orbs.push({x:e.x,y:e.y,v:e.xpv,dead:false});
-    const pc=e.lord?30:(e.kind==='cav'?7:6);
+    const pc=e.lord?40:(e.kind==='cav'?7:6);
     for(let i=0;i<pc;i++){ const a=Math.random()*Math.PI*2, sp=40+Math.random()*140;
-      g.particles.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.4+Math.random()*0.4,col:e.col,r:e.lord?5:3}); }
-    g.ultCharge=Math.min(g.ultMax, g.ultCharge+(e.lord?30:(e.kind==='cav'?2.4:1.6))*g.ultRate);
+      g.particles.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.4+Math.random()*0.4,col:e.col,r:e.lord?6:3}); }
+    g.ultCharge=Math.min(g.ultMax, g.ultCharge+(e.lord?40:(e.kind==='cav'?2.4:1.6))*g.ultRate);
     if(g.ultCharge>=g.ultMax && !g.ultReady){ g.ultReady=true; toast('🐉 필살기 준비! (우하단 버튼)'); vib([20,40,20]); }
     if(g.vamp>0 && Math.random()<g.vamp) g.hp=Math.min(g.maxHp,g.hp+5);
-    if(e.lord){ lordDefeated(e); }
+    if(e.lord){ bossDefeated(e); }
     // 100명 단위 마일스톤
     if(Math.floor(g.kills/100) > g.lastMilestone){
       g.lastMilestone=Math.floor(g.kills/100);
@@ -846,14 +946,41 @@ function critEffect(e){
   clearTimeout(window._critT);
   window._critT=setTimeout(()=>{ timeScale=1; zoomTarget=1; }, 180);
 }
-function lordDefeated(e){
-  // 장수 처치 — 큰 연출
-  timeScale=0.25; zoomTarget=1.5; camShake=1.6;
+function bossDefeated(e){
+  const g=G;
+  // 처치 대연출
+  timeScale=0.2; zoomTarget=1.6; camShake=2.5;
   const fl=$('fxFlash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
-  skillFxName(e.lordName+' 격파!', '#ffd050');
-  vib([50,40,80]);
-  clearTimeout(window._lordT);
-  window._lordT=setTimeout(()=>{ timeScale=1; zoomTarget=1; }, 500);
+  skillFxName(e.lordName+' 격파!!!', '#ffd050');
+  vib([80,50,120,50,120]);
+  // 대량 파티클
+  for(let i=0;i<120;i++){ const a=Math.random()*Math.PI*2, sp=120+Math.random()*400;
+    g.particles.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.6+Math.random()*0.6,col:i%2?'#ffd870':'#fff',r:4+Math.random()*3}); }
+  g.bossActive=false;
+  clearTimeout(window._bossT);
+  window._bossT=setTimeout(()=>{
+    timeScale=1; zoomTarget=1;
+    if(e.isFinal){ winGame(); }
+    else { stageClear(); }
+  }, 1200);
+}
+function stageClear(){
+  const g=G;
+  const sc=SCENARIO[g.chapter];
+  g._paused=true;
+  // 클리어 → 잔적 소탕 후 다음 장
+  g.enemies=g.enemies.filter(e=>e.lord); // 잡병 정리
+  const el=$('clearScreen');
+  $('clearTitle').textContent=sc.title+' 평정!';
+  $('clearSub').textContent=(g.chapter+1)+' / '+SCENARIO.length+' 장 완료';
+  el.classList.add('on');
+  const nextFn=()=>{ el.classList.remove('on'); el.removeEventListener('pointerdown',nextFn);
+    g.enemies=[]; g.eProjectiles=[]; 
+    // 다음 장 체력 회복 보너스
+    g.hp=Math.min(g.maxHp, g.hp + g.maxHp*0.4);
+    startChapter(g.chapter+1);
+  };
+  el.addEventListener('pointerdown', nextFn);
 }
 
 /* =========================================================
@@ -1370,11 +1497,20 @@ function updateHUD(){
   const g=G; if(!g) return;
   $('xpFill').style.width=(g.xp/g.xpNext*100)+'%';
   $('lvlBadge').textContent='Lv.'+g.level;
-  const t=Math.floor(g.time); const mm=String(Math.floor(t/60)).padStart(2,'0'); const ss=String(t%60).padStart(2,'0');
-  $('timer').textContent=mm+':'+ss;
+  // 진행도: 장 + 킬목표 (보스전이면 표시 전환)
+  const sc=SCENARIO[g.chapter];
+  if(g.bossActive){ $('progress').textContent=(g.chapter+1)+'장 · 보스전'; }
+  else { $('progress').textContent=(g.chapter+1)+'장 · '+Math.min(g.chapterKills,sc.killGoal)+'/'+sc.killGoal; }
   $('kills').textContent='☠ '+g.kills;
   $('hpFill').style.width=(g.hp/g.maxHp*100)+'%';
   $('hpLabel').textContent=Math.ceil(g.hp)+' / '+g.maxHp;
+  // 보스 체력바
+  const boss=g.enemies.find(e=>e.lord && !e.dead);
+  if(boss && g.bossActive){
+    $('bossHpWrap').classList.add('on');
+    $('bossHpName').textContent='◆ '+boss.lordName+' ◆';
+    $('bossHpFill').style.width=(boss.hp/boss.maxHp*100)+'%';
+  } else { $('bossHpWrap').classList.remove('on'); }
   // 스킬 쿨다운 오버레이 (남은 비율)
   const s1r=g.s1cd>0? g.s1cd/(g.hero.s1.cd*g.cdrMul):0;
   const s2r=g.s2cd>0? g.s2cd/(g.hero.s2.cd*g.cdrMul):0;
@@ -1390,19 +1526,20 @@ function updateHUD(){
    ========================================================= */
 function winGame(){
   G.gameOver=true; endLoop(); $('hud').classList.remove('on');
-  $('resultTitle').className='result-title win'; $('resultTitle').textContent='생 환';
-  showResult('300초 생존 달성!');
+  $('resultTitle').className='result-title win'; $('resultTitle').textContent='천하통일';
+  showResult('전 5장 정벌 완수! 삼국을 평정했다!');
+  vib([100,60,100,60,150]);
 }
 function loseGame(){
   G.gameOver=true; endLoop(); $('hud').classList.remove('on');
   $('resultTitle').className='result-title lose'; $('resultTitle').textContent='전 사';
-  const t=Math.floor(G.time); const mm=String(Math.floor(t/60)).padStart(2,'0'); const ss=String(t%60).padStart(2,'0');
-  showResult(`${mm}:${ss} 에서 전사`); vib([100,50,100]);
+  const sc=SCENARIO[G.chapter];
+  showResult(`${sc.chapter} 「${sc.title}」에서 전사`); vib([100,50,100]);
 }
 function showResult(sub){
   const g=G;
   $('resultStat').innerHTML=`<b style="color:${FAC_COLOR[g.hero.f]}">${g.hero.n}</b> · ${sub}<br><br>`+
-    `처치 <b style="color:#e8756a">${g.kills}</b>명<br>도달 레벨 ${g.level}`;
+    `총 처치 <b style="color:#e8756a">${g.kills}</b>명<br>도달 레벨 ${g.level}`;
   setTimeout(()=>show('resultScreen'),600);
 }
 
