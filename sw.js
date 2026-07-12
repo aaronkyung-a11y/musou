@@ -1,5 +1,5 @@
 /* 無雙記 Service Worker — 오프라인 캐시 */
-const CACHE = 'musou-v0.4.2';
+const CACHE = 'musou-v0.5';
 const ASSETS = [
   './',
   './index.html',
