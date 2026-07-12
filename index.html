@@ -220,6 +220,29 @@
   .bi-quote{ font-size:16px; color:#e8dcc0; margin-top:6px; max-width:420px; }
   .bi-title{ font-size:13px; color:var(--gold); font-weight:700; margin-bottom:2px; }
 
+  /* 콤보 카운터 */
+  #comboBox{ position:fixed; top:22%; right:5%; z-index:23; pointer-events:none;
+    display:none; flex-direction:column; align-items:flex-end; line-height:.9;
+    text-shadow:0 2px 6px #000; transform-origin:right center; }
+  #comboBox.show{ display:flex; }
+  #comboBox .cb-n{ font-size:48px; font-weight:900; color:#fff; }
+  #comboBox .cb-x{ font-size:16px; font-weight:800; color:#ffd050; letter-spacing:3px; }
+  #comboBox.t1 .cb-n{ color:#ffe680; }
+  #comboBox.t2 .cb-n{ color:#ff9a4a; font-size:56px; }
+  #comboBox.t3 .cb-n{ color:#ff5a4a; font-size:66px; }
+  #comboBox.pop{ animation:comboPop .25s ease-out; }
+  @keyframes comboPop{ 0%{transform:scale(1.4)} 60%{transform:scale(.92)} 100%{transform:scale(1)} }
+
+  /* 웨이브 이벤트 알림 */
+  #eventToast{ position:fixed; top:16%; left:50%; transform:translateX(-50%) scale(.8);
+    z-index:24; pointer-events:none; opacity:0; font-size:26px; font-weight:900; letter-spacing:2px;
+    color:#ffd84a; text-shadow:0 2px 8px #000, 0 0 20px rgba(255,180,60,.6); white-space:nowrap;
+    padding:8px 22px; background:rgba(20,10,6,.6); border-radius:30px; border:2px solid rgba(255,180,60,.5); }
+  #eventToast.go{ animation:evtToast 2.4s ease-out forwards; }
+  @keyframes evtToast{ 0%{opacity:0;transform:translateX(-50%) scale(.7)}
+    12%{opacity:1;transform:translateX(-50%) scale(1.05)} 20%{transform:translateX(-50%) scale(1)}
+    80%{opacity:1} 100%{opacity:0;transform:translateX(-50%) scale(1)} }
+
   /* 필살기 컷인 — 무장 초상화가 확 들어오는 연출 */
   #ultCutin{ position:absolute; inset:0; z-index:26; pointer-events:none; display:none;
     align-items:center; justify-content:flex-start; overflow:hidden; }
@@ -977,10 +1000,11 @@ function startGame(heroIdx){
     ultCharge:0, ultMax:100, ultReady:false,
     s1cd:0, s2cd:0, buffInvul:0, buffAtk:0, buffSpd:0,
     upLevels:{}, _paused:false, evo:{}, _evoTaken:{},
-    enemies:[], projectiles:[], eProjectiles:[], orbs:[], particles:[], damageTexts:[], slashes:[],
+    enemies:[], projectiles:[], eProjectiles:[], orbs:[], particles:[], damageTexts:[], slashes:[], allies:[],
+    eventTimer:12,
     wpnTimer:0, spawnTimer:0, gameOver:false, won:false,
     swingT:0, swingDur:0.24, swingDir:0, swingType:'slash',
-    lordActive:false, animTick:0, ultPose:0,
+    lordActive:false, animTick:0, ultPose:0, combo:0, comboT:0, maxCombo:0,
     // 시나리오
     chapter:0, chapterKills:0, bossActive:false, bossSpawned:false, stageClear:false
   };
@@ -990,7 +1014,7 @@ function startGame(heroIdx){
   const slb=metaStartLevelBonus();
   for(let i=0;i<slb;i++){ G.level++; }
   timeScale=1; zoom=1; zoomTarget=1; camShake=0;
-  $('hud').classList.add('on'); show(null);
+  $('hud').classList.add('on'); show(null); hideCombo();
   // 스킬 버튼 라벨 세팅
   $('s1ic').textContent=h.s1.ic; $('s1nm').textContent=h.s1.name;
   $('s2ic').textContent=h.s2.ic; $('s2nm').textContent=h.s2.name;
@@ -1106,6 +1130,9 @@ function loop(now){
 function update(dt){
   const g=G, h=g.hero; g.time+=dt; g.animTick+=dt;
 
+  // 콤보 타이머 (시간 내 미처치 시 소멸)
+  if(g.comboT>0){ g.comboT-=dt; if(g.comboT<=0){ g.combo=0; hideCombo(); } }
+
   // 버프 타이머
   if(g.buffInvul>0) g.buffInvul-=dt;
   if(g.buffAtk>0) g.buffAtk-=dt;
@@ -1140,14 +1167,72 @@ function update(dt){
     }
   }
 
+  // === 웨이브 이벤트 (긴장감) — 보스전 아닐 때 주기적으로 발생 ===
+  g.eventTimer=(g.eventTimer||0)-dt;
+  if(g.eventTimer<=0 && !g.bossSpawned && g.chapterKills>15){
+    g.eventTimer = 14 + Math.random()*8;   // 14~22초마다
+    const roll=Math.random();
+    if(roll<0.4){
+      // 기병 돌격 웨이브: 한쪽에서 기병 대열이 몰려옴
+      const dir=Math.random()*Math.PI*2;
+      bigToast('⚠ 적 기병 돌격!');
+      SFX.bossRoar();
+      FX.shake(1.5);
+      for(let i=0;i<12+g.chapter*2;i++){ const spread=(Math.random()-0.5)*0.6;
+        spawnEnemy({kind:'cav', ang:dir+spread}); }
+    } else if(roll<0.7){
+      // 엘리트 출현
+      bigToast('⚠ 정예 무장 출현!');
+      SFX.crit();
+      const n=1+Math.floor(g.chapter/3);
+      for(let i=0;i<n;i++) spawnEnemy({elite:true});
+    } else {
+      // 아군 원군 (동료 소환) — 같은 진영 무장
+      const roster=HEROES.filter(hh=>hh.f===g.hero.f && hh.n!==g.hero.n);
+      if(roster.length){ const ally=roster[Math.floor(Math.random()*roster.length)];
+        summonAlly(ally.n); }
+      else { spawnEnemy({elite:true}); }
+    }
+  }
+
   // 기본공격 자동
   g.wpnTimer-=dt;
   const rate=h.wpn.rate/60*g.rateMul;
   if(g.wpnTimer<=0){ g.wpnTimer=rate; fireWeapon(); }
 
+  // 동료(원군) 업데이트 — 근처 적을 자동 공격, 수명 다하면 퇴장
+  if(g.allies && g.allies.length){
+    for(const a of g.allies){
+      if(a.dead) continue;
+      a.life-=dt; a.animP+=dt*8;
+      if(a.life<=0){ a.dead=true; continue; }
+      // 가장 가까운 적 탐색
+      let tgt=null, best=1e9;
+      for(const e of g.enemies){ if(e.dead) continue; const dd=Math.hypot(e.x-a.x,e.y-a.y); if(dd<best){best=dd;tgt=e;} }
+      if(tgt){
+        // 적에게 접근
+        if(best>60){ const ax=(tgt.x-a.x)/best, ay=(tgt.y-a.y)/best; a.x+=ax*130*dt; a.y+=ay*130*dt; }
+        // 플레이어와 너무 멀어지지 않게
+        const pd=Math.hypot(g.px-a.x,g.py-a.y); if(pd>320){ a.x+=(g.px-a.x)/pd*100*dt; a.y+=(g.py-a.y)/pd*100*dt; }
+        // 공격
+        a.atkCd-=dt;
+        if(a.atkCd<=0 && best<90){ a.atkCd=0.5;
+          g.slashes.push({type:'cone',cx:a.x,cy:a.y,range:100,dmg:40+g.chapter*10,dir:Math.atan2(tgt.y-a.y,tgt.x-a.x),half:Math.PI*0.45,age:0,dur:0.14,hitSet:new Set(),fx:{type:'cone',range:100,dir:Math.atan2(tgt.y-a.y,tgt.x-a.x)}});
+          for(const e of g.enemies){ if(e.dead)continue; const dd=Math.hypot(e.x-a.x,e.y-a.y); if(dd<100) hitEnemy(e,40+g.chapter*10,false); }
+        }
+      } else {
+        // 적 없으면 플레이어 곁으로
+        const pd=Math.hypot(g.px-a.x,g.py-a.y)||1; if(pd>70){ a.x+=(g.px-a.x)/pd*100*dt; a.y+=(g.py-a.y)/pd*100*dt; }
+      }
+      if(a.hitFlash>0) a.hitFlash-=dt;
+    }
+    g.allies=g.allies.filter(a=>!a.dead);
+  }
+
   // 적 이동/공격
   for(const e of g.enemies){
     if(e.dead) continue;
+    if(e.elite){ e.eliteGlow=(e.eliteGlow||0)+dt; }
     const dx=g.px-e.x, dy=g.py-e.y; const d=Math.hypot(dx,dy)||1;
     if(e.kind==='boss'){
       updateBoss(e, dx, dy, d, dt);
@@ -1239,27 +1324,40 @@ function knockback(e,dx,dy,f){ const d=Math.hypot(dx,dy)||1; e.x+=dx/d*f; e.y+=d
    적 스폰 (병종: 보병/기병/궁병)
    ========================================================= */
 let enemyIdSeq=0;
-function spawnEnemy(){
+function spawnEnemy(opts){
   const g=G;
-  // 화면(줌 반영) 가장자리 살짝 밖에서 스폰 → 화면 안으로 몰려옴
+  opts=opts||{};
   const viewR=Math.max(W,H)/zoom*0.62;
-  const ang=Math.random()*Math.PI*2, rad=viewR+40+Math.random()*80;
-  let x=g.px+Math.cos(ang)*rad, y=g.py+Math.sin(ang)*rad;
-  // 월드 밖이면 반대편으로 반사
+  const ang=(opts.ang!==undefined)?opts.ang:Math.random()*Math.PI*2, rad=viewR+40+Math.random()*80;
+  let x=(opts.x!==undefined)?opts.x:g.px+Math.cos(ang)*rad, y=(opts.y!==undefined)?opts.y:g.py+Math.sin(ang)*rad;
   x=Math.max(20,Math.min(g.worldW-20,x)); y=Math.max(20,Math.min(g.worldH-20,y));
   const tScale=1+g.chapter*0.35;
-  const roll=Math.random();
-  let kind='foot';
-  if(roll<0.22) kind='cav';
-  else if(roll<0.40) kind='archer';
+  let kind=opts.kind||'foot';
+  if(!opts.kind){ const roll=Math.random(); if(roll<0.22) kind='cav'; else if(roll<0.40) kind='archer'; }
   const facKeys=Object.keys(FAC_COLOR);
-  const fac=facKeys[Math.floor(Math.random()*facKeys.length)];
+  const fac=opts.fac||facKeys[Math.floor(Math.random()*facKeys.length)];
   let hp,r,spd,dmg,xpv;
   if(kind==='cav'){ hp=16*tScale; r=13; spd=88+Math.random()*24; dmg=16; xpv=2; }
   else if(kind==='archer'){ hp=12*tScale; r=12; spd=48+Math.random()*14; dmg=10; xpv=2; }
   else { hp=14*tScale; r=12; spd=52+Math.random()*16; dmg=14; xpv=1; }
-  g.enemies.push({ id:enemyIdSeq++, x,y, hp, maxHp:hp, r, spd, dmg, dead:false, deathAge:0,
-    col:FAC_COLOR[fac], kind, hitFlash:0, xpv, shootCd:1.5+Math.random(), stun:0, lord:false, animP:Math.random()*6 });
+  const e={ id:enemyIdSeq++, x,y, hp, maxHp:hp, r, spd, dmg, dead:false, deathAge:0,
+    col:FAC_COLOR[fac], kind, hitFlash:0, xpv, shootCd:1.5+Math.random(), stun:0, lord:false, animP:Math.random()*6 };
+  // 엘리트: 빛나는 강화 몹 (큰 체력·데미지, XP 다량)
+  if(opts.elite){
+    e.elite=true; e.hp*=6; e.maxHp=e.hp; e.dmg=Math.round(e.dmg*1.6); e.r=Math.round(e.r*1.5);
+    e.spd*=0.85; e.xpv=8; e.col='#ffce54'; e.eliteGlow=0;
+  }
+  g.enemies.push(e);
+  return e;
+}
+// 아군 무장 소환 (동료) — 플레이어 곁에서 함께 싸움
+function summonAlly(name){
+  const g=G;
+  const ally={ id:enemyIdSeq++, ally:true, name, x:g.px+(Math.random()-0.5)*80, y:g.py+(Math.random()-0.5)*80,
+    hp:200, maxHp:200, r:15, atkCd:0, life:18, col:FAC_COLOR[g.hero.f], hitFlash:0, animP:0, slug:HERO_SLUG[name]||null };
+  g.allies=g.allies||[]; g.allies.push(ally);
+  bigToast('원군 등장! '+name);
+  SFX.milestone();
 }
 function spawnBoss(boss){
   const g=G; g.bossSpawned=true; g._paused=true;
@@ -1555,6 +1653,10 @@ function hitEnemy(e,dmg,forceCrit){
   if(isCrit && !e.dead) critEffect(e);
   if(e.hp<=0 && !e.dead){
     e.dead=true; e.deathAge=0; g.kills++;
+    // 콤보 카운터
+    g.combo=(g.combo||0)+1; g.comboT=2.2;   // 2.2초 내 다음 처치 시 유지
+    if(g.combo>=5) showCombo(g.combo);
+    if(g.combo>(g.maxCombo||0)) g.maxCombo=g.combo;
     if(!e.lord) g.chapterKills++;   // 잡병만 진행도에 카운트
     g.orbs.push({x:e.x,y:e.y,v:e.xpv,dead:false});
     const pc=e.lord?40:(e.kind==='cav'?7:6);
@@ -1939,6 +2041,23 @@ function bigMsg(main, kills){
   $('bmMain').textContent=main;
   el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
 }
+// 웨이브 이벤트 알림 (화면 상단 큰 토스트)
+function bigToast(txt){
+  let el=$('eventToast');
+  if(!el){ el=document.createElement('div'); el.id='eventToast'; document.body.appendChild(el); }
+  el.textContent=txt;
+  el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+}
+// 콤보 카운터
+function showCombo(n){
+  let el=$('comboBox');
+  if(!el){ el=document.createElement('div'); el.id='comboBox'; document.body.appendChild(el); }
+  const tier = n>=100?'t3':(n>=50?'t2':(n>=20?'t1':''));
+  el.className='show '+tier;
+  el.innerHTML=`<span class="cb-n">${n}</span><span class="cb-x">COMBO</span>`;
+  el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+}
+function hideCombo(){ const el=$('comboBox'); if(el) el.className=''; }
 
 /* =========================================================
    적장 등장 연출
@@ -2028,6 +2147,8 @@ function render(){
 
   // 적
   for(const e of g.enemies){ const a=e.dead?Math.max(0,1-e.deathAge/0.3):1; drawEnemy(e,a); }
+  // 동료(원군)
+  if(g.allies) for(const a of g.allies){ if(!a.dead) drawAlly(a); }
   // 플레이어(기마)
   drawHeroMounted();
   // 파티클
@@ -2060,6 +2181,15 @@ function drawEnemy(e,alpha){
   ctx.save(); ctx.globalAlpha=alpha;
   const flash=e.hitFlash>0; if(e.hitFlash>0) e.hitFlash-=0.016;
   const bob=Math.sin((G.animTick*6+e.animP))*2;
+  // 엘리트 오라 (빛나는 금빛 원)
+  if(e.elite && !e.dead){
+    const pulse=0.5+Math.sin((e.eliteGlow||0)*5)*0.3;
+    ctx.save(); ctx.globalAlpha=alpha*pulse;
+    const gr=ctx.createRadialGradient(e.x,e.y+bob,e.r*0.5, e.x,e.y+bob,e.r*2.2);
+    gr.addColorStop(0,'rgba(255,210,80,.5)'); gr.addColorStop(1,'rgba(255,180,40,0)');
+    ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(e.x,e.y+bob,e.r*2.2,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
 
   if(e.lord){
     // 특기 예고 렌더
@@ -2145,6 +2275,29 @@ function drawEnemy(e,alpha){
 }
 
 /* 말 그리기 (공용) */
+function drawAlly(a){
+  const bob=Math.sin((G.animTick*6+a.animP))*2;
+  const y=a.y+bob;
+  // 아군 표시: 발밑 청록 링
+  ctx.save();
+  ctx.globalAlpha=Math.min(1, a.life/2);   // 퇴장 직전 페이드
+  ctx.strokeStyle='rgba(90,200,255,.8)'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.ellipse(a.x,y+a.r*0.9,a.r*0.9,a.r*0.4,0,0,Math.PI*2); ctx.stroke();
+  // 초상화 or 도트 몸통
+  const img=a.slug?HERO_IMG[a.name]:null;
+  if(img){
+    const s=a.r*2.4;
+    ctx.drawImage(img, a.x-s/2, y-s*0.7, s, s);
+  } else {
+    ctx.fillStyle=a.col; ctx.beginPath(); ctx.arc(a.x,y,a.r,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(a.name[0], a.x, y+4);
+  }
+  // 이름표
+  ctx.fillStyle='#8ad0ff'; ctx.font='bold 11px sans-serif'; ctx.textAlign='center';
+  ctx.fillText(a.name, a.x, y-a.r-6);
+  ctx.restore();
+}
 function drawHorse(x,y,r,col,flash){
   ctx.save();
   // 말 몸통
