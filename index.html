@@ -509,7 +509,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.7";
+const GAME_VER = "v5.8";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -707,7 +707,7 @@ const SFX = {
 const HERO_UNLOCK_COST={
   '관우':0, '조운':0, '장비':0,
   '태사자':60, '감녕':120, '하후돈':220, '황충':350,
-  '장료':500, '허저':700, '손책':950, '여포':1400,
+  '조조':420, '주유':550, '장료':600, '허저':750, '마초':850, '손책':1000, '여포':1500,
 };
 const HEROES=[
   { n:"관우", f:"촉", mig:97, ldr:94, spd:2.2,
@@ -764,7 +764,22 @@ const HEROES=[
     wpn:{name:"강궁", type:"shoot", dmg:21, range:340, rate:38},
     s1:{name:"철삭", ic:"🎯", cd:4, desc:"강력 관통 사격"},
     s2:{name:"금범", ic:"🏹", cd:9, desc:"부채꼴 다발 사격"},
-    ult:{name:"백기겁영", ic:"🌧️", desc:"화면 전체 화살비"} }
+    ult:{name:"백기겁영", ic:"🌧️", desc:"화면 전체 화살비"} },
+  { n:"마초", f:"촉", mig:97, ldr:82, spd:2.9,
+    wpn:{name:"용기병창", type:"pierce", dmg:23, range:250, rate:32},
+    s1:{name:"서량철기", ic:"🐎", cd:4, desc:"돌진하며 관통 강타"},
+    s2:{name:"질풍노도", ic:"🌪️", cd:8, desc:"이속 대폭↑ + 접촉 대미지"},
+    ult:{name:"금마초", ic:"🐎", desc:"연속 돌진하며 전방 관통"} },
+  { n:"조조", f:"위", mig:88, ldr:99, spd:2.4,
+    wpn:{name:"의천검", type:"cone", dmg:25, range:125, rate:44},
+    s1:{name:"효웅단", ic:"⚔️", cd:5, desc:"전방 십자 검격"},
+    s2:{name:"군세호령", ic:"🚩", cd:11, desc:"공격력·이속 대폭 강화"},
+    ult:{name:"난세간웅", ic:"👑", desc:"전방위 검기 폭발 + 위압"} },
+  { n:"주유", f:"오", mig:80, ldr:97, spd:2.4,
+    wpn:{name:"화공술", type:"shoot", dmg:24, range:320, rate:42},
+    s1:{name:"연환계", ic:"🔥", cd:5, desc:"착탄 시 폭발하는 화염탄"},
+    s2:{name:"동남풍", ic:"🌬️", cd:10, desc:"전방 화염 폭풍 방출"},
+    ult:{name:"적벽대화", ic:"🔥", desc:"화면 전체 화염 폭발"} }
 ];
 
 /* 적 장수 — 등장 대사 */
@@ -1052,6 +1067,12 @@ const EVOLUTIONS=[
     req:{rate:2, dmg:2}, apply:s=>{ s.evo.sunce=true; } },
   { id:'evo_ganning', hero:'감녕', name:'금범연사', ic:'🏹', d:'강궁 4발 연사 + 관통',
     req:{dmg:2, rate:2}, apply:s=>{ s.evo.ganning=true; } },
+  { id:'evo_machao', hero:'마초', name:'서량신창', ic:'🐎', d:'창이 3갈래 관통으로 갈라짐',
+    req:{dmg:2, spd:1}, apply:s=>{ s.evo.machao=true; } },
+  { id:'evo_caocao', hero:'조조', name:'효웅검기', ic:'⚔️', d:'검격이 십자 검기 발사로 진화',
+    req:{dmg:2, rate:1}, apply:s=>{ s.evo.caocao=true; } },
+  { id:'evo_zhouyu', hero:'주유', name:'열화연환', ic:'🔥', d:'화염탄이 착탄 시 폭발',
+    req:{dmg:2, range:1}, apply:s=>{ s.evo.zhouyu=true; } },
 ];
 // 진화 조건 충족 여부 (아직 진화 안 했고 조건 만족)
 function availableEvolution(g){
@@ -1088,6 +1109,12 @@ const AWAKENINGS=[
     req:{rate:3,dmg:3}, apply:s=>{ s.awk.sunce=true; s.dmgMul*=1.3; s.rateMul*=0.8; } },
   { id:'awk_ganning', hero:'감녕', name:'금범수적', ic:'🏹', d:'강궁 6발 연사 + 전탄 관통',
     req:{dmg:3,rate:2}, apply:s=>{ s.awk.ganning=true; s.dmgMul*=1.3; s.pierce+=4; } },
+  { id:'awk_machao', hero:'마초', name:'금마초', ic:'🐎', d:'5갈래 관통 + 돌진 강화',
+    req:{dmg:4,spd:2}, apply:s=>{ s.awk.machao=true; s.dmgMul*=1.3; s.pierce+=99; s.spdMul+=0.15; } },
+  { id:'awk_caocao', hero:'조조', name:'난세간웅', ic:'👑', d:'검기 다중 십자 + 전능력↑',
+    req:{dmg:4,rate:3}, apply:s=>{ s.awk.caocao=true; s.dmgMul*=1.25; s.rateMul*=0.8; s.rangeMul+=0.2; } },
+  { id:'awk_zhouyu', hero:'주유', name:'적벽화신', ic:'🔥', d:'화염탄 다발 + 대폭발 강화',
+    req:{dmg:4,range:2}, apply:s=>{ s.awk.zhouyu=true; s.dmgMul*=1.35; s.rangeMul+=0.3; } },
 ];
 // 각성 조건 충족 여부 (진화를 이미 마쳤고, 아직 각성 안 했고, 조건 만족)
 function availableAwakening(g){
@@ -1128,6 +1155,12 @@ const ENDINGS={
     lines:["아버지의 뜻을 이어 강동 육군을 평정한 젊은 패왕.","소패왕의 기세로 강남에 손씨의 기틀을 세웠으니,","그 짧고 찬란한 생은 오나라의 새벽이 되었다."] },
   ganning:{ title:"錦帆賊에서 名將으로", col:"#ff8020",
     lines:["비단 돛을 단 강도에서 오나라 최고의 맹장으로.","백기(百騎)로 조조의 대영을 기습한 그 담력은","적조차 감탄케 한 무용담으로 남았다."] },
+  machao:{ title:"錦馬超, 서량의 질풍", col:"#e0d0c0",
+    lines:["백은 갑옷을 두른 서량의 금마초, 그 이름만으로 조조가 수염을 잘랐다.","아버지의 원수를 향한 창끝은 끝내 천하를 가로질렀으니,","질풍 같은 그 기병은 촉의 오호대장으로 역사에 남았다."] },
+  caocao:{ title:"亂世의 奸雄, 천하를 쥐다", col:"#4a6fa5",
+    lines:["난세의 간웅이라 불렸으나, 그 그릇은 천하를 담고도 남았다.","치세의 능신이자 난세의 영웅 — 조맹덕의 위업은","삼국의 판도를 뒤흔들고 위(魏)의 기틀을 세웠다."] },
+  zhouyu:{ title:"赤壁의 불꽃, 강동의 지주", col:"#ff6030",
+    lines:["동남풍을 빌려 적벽을 불바다로 만든 그 지략.","주공근의 화공 한 번에 조조의 백만 대군이 재가 되었으니,","강동의 젊은 도독은 오나라를 지켜낸 불꽃이 되었다."] },
 };
 function heroEnding(slug){ return ENDINGS[slug] || { title:"천하를 평정하다", col:"#ffd050", lines:["난세를 종식시킨 그 이름은 역사에 길이 남았다."] }; }
 const STAT_LABEL={ dmg:'무력', rate:'속공', range:'범위', spd:'이속', hp:'체력',
@@ -1187,7 +1220,7 @@ function rollRelic(g){
    무장 그림 로딩 — assets/<slug>.png (투명 PNG, 무장만)
    그림이 있으면 선택화면·전투에서 사용, 없으면 코드 도트로 대체
    ========================================================= */
-const HERO_SLUG={ "관우":"guanyu","조운":"zhaoyun","장비":"zhangfei","여포":"lubu","황충":"huangzhong","태사자":"taishici","하후돈":"xiahoudun","장료":"zhangliao","허저":"xuchu","손책":"sunce","감녕":"ganning" };
+const HERO_SLUG={ "관우":"guanyu","조운":"zhaoyun","장비":"zhangfei","여포":"lubu","황충":"huangzhong","태사자":"taishici","하후돈":"xiahoudun","장료":"zhangliao","허저":"xuchu","손책":"sunce","감녕":"ganning","마초":"machao","조조":"caocao","주유":"zhouyu" };
 // 적장 전용 초상화 (별도 파일). 여포는 플레이어 이미지 재활용.
 const ENEMY_LORD_IMG={};   // lordName -> Image
 const ENEMY_LORD_SLUG={ "장보":"zhangbao", "화웅":"huaxiong", "안량":"anliang", "장료":"zhangliao", "사마의":"simayi", "하후연":"xiahouyuan", "문추":"wenchou", "황조":"huangzu" };
@@ -2124,6 +2157,9 @@ function fireWeapon(){
       // 장료: 돌진 관통 (진화 1발 / 각성 질주 폭풍 3연)
       if(hn==='장료' && aw.zhangliao){ const lc='#40e0ff'; for(let k=0;k<3;k++) setTimeout(()=>{ if(G){ const d=aimDir(); shootProj(d,760,dmg*1.1,range*2.8,10,lc,8); } }, k*60); auraBurst('#40e0ff'); }
       else if(hn==='장료' && ev.zhangliao){ shootProj(dir,640,dmg*1.1,range*2.6,8,'#7ab0ff',6); }
+      // 조조: 십자 검기 발사 (진화 4방 / 각성 8방 + 회전)
+      if(hn==='조조' && aw.caocao){ const cc='#6a9fe0'; for(let k=0;k<8;k++){ const a=dir+k*(Math.PI/4); shootProj(a,520,dmg*0.7,range*2.2,4+g.pierce,cc,6); } auraBurst('#4a6fa5'); }
+      else if(hn==='조조' && ev.caocao){ const cc='#7ab0ff'; for(let k=0;k<4;k++){ const a=dir+k*(Math.PI/2); shootProj(a,500,dmg*0.7,range*2.0,3,cc,5); } }
     }
     triggerSwing('slash', dir);
   } else if(w.type==='pierce'){
@@ -2141,6 +2177,16 @@ function fireWeapon(){
       shootProj(dir+0.12,520,dmg*0.8,range,8+g.pierce,'#8ad0ff',5);
       shootProj(dir-0.12,520,dmg*0.8,range,8+g.pierce,'#8ad0ff',5);
     }
+    // 마초: 서량 기병창 — 진화 3갈래, 각성 5갈래 관통 (백은색)
+    if(hn==='마초' && aw.machao){
+      const mc='#f0ece0';
+      shootProj(dir+0.14,560,dmg*0.9,range,99,mc,6); shootProj(dir-0.14,560,dmg*0.9,range,99,mc,6);
+      shootProj(dir+0.28,560,dmg*0.75,range,99,mc,6); shootProj(dir-0.28,560,dmg*0.75,range,99,mc,6);
+      auraBurst('#e0d0c0');
+    } else if(hn==='마초' && ev.machao){
+      shootProj(dir+0.14,540,dmg*0.85,range,8+g.pierce,'#d8d0c4',5);
+      shootProj(dir-0.14,540,dmg*0.85,range,8+g.pierce,'#d8d0c4',5);
+    }
     triggerSwing('thrust', dir);
   } else if(w.type==='shoot'){
     const dir=aimDir();
@@ -2150,6 +2196,15 @@ function fireWeapon(){
       const acol = aw.ganning?'#ff8020':'#ffb84a';
       for(let i=0;i<n;i++){ const off=(i-(n-1)/2)*0.13; shootProj(dir+off,720,dmg,range,pierce,acol,aw.ganning?6:5); }
       if(aw.ganning) auraBurst('#ff8020');
+    } else if(hn==='주유'){
+      // 주유: 화공 — 화염탄. 진화/각성 시 다발+폭발 강화
+      const fcol = aw.zhouyu?'#ff4020':'#ff7030';
+      let n = aw.zhouyu?5:(ev.zhouyu?3:1);
+      const spread=0.16;
+      for(let i=0;i<n;i++){ const off=(i-(n-1)/2)*spread; shootProj(dir+off,560,dmg*(n>1?0.8:1),range,1+g.pierce,fcol,aw.zhouyu?8:6); }
+      // 화염 잔염 파티클
+      for(let i=0;i<(aw.zhouyu?10:5);i++){ const a=dir+(Math.random()-.5)*0.6; g.particles.push({x:g.px+Math.cos(a)*30,y:g.py+Math.sin(a)*30,vx:Math.cos(a)*140,vy:Math.sin(a)*140,life:0.35,col:i%2?'#ff9040':'#ff5020',r:4}); }
+      if(aw.zhouyu) auraBurst('#ff5020');
     } else {
       let arrows = (hn==='황충'&&aw.huangzhong)?8:((hn==='황충'&&ev.huangzhong)?5:3);   // 각성: 8발
       const pierce = (hn==='황충'&&(aw.huangzhong||ev.huangzhong))?(4+g.pierce):(1+g.pierce);
@@ -3029,6 +3084,7 @@ function drawHeroMounted(){
     '관우':{base:'#b5482f', dark:'#7a2416'},   // 적토마 계열(약간 톤 다름)
     '조운':{base:'#e8e4dc', dark:'#a8a29a'},   // 백룡마
     '장비':{base:'#3a3540', dark:'#1e1a22'},   // 오추마(흑)
+    '마초':{base:'#dcd4c8', dark:'#9a9084'},   // 서량 백마
   };
   const hc = HORSE_COL[h.n] || {base:'#7a3f26', dark:'#5a2e1a'};
   // 속도 버프 시 각 말 색을 밝게(붉은 기운 대신 자기 색 강조)
