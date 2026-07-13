@@ -509,7 +509,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.3";
+const GAME_VER = "v5.4";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -1417,6 +1417,7 @@ function endLoop(){ running=false; if(rafId) cancelAnimationFrame(rafId); rafId=
 function startChapter(idx){
   const g=G; g.chapter=idx; g.chapterKills=0;
   g.bossActive=false; g.bossSpawned=false; g.stageClear=false;
+  g.combo=0; g.comboT=0; hideCombo();   // 장 전환 시 콤보 잔상 제거
   const sc=SCENARIO[idx];
   // 도입 스토리 (일시정지)
   g._paused=true;
@@ -2191,6 +2192,7 @@ function bossDefeated(e){
 }
 function openRelicChest(){
   const g=G; g._paused=true;
+  g.combo=0; g.comboT=0; hideCombo();
   const relic=rollRelic(g);
   // 남은 유물이 없으면 상자 생략, 바로 스테이지 클리어
   if(!relic){ stageClear(); return; }
@@ -2608,6 +2610,7 @@ function hideCombo(){ const el=$('comboBox'); if(el) el.className=''; }
    적장 등장 연출
    ========================================================= */
 function showBossIntro(lord, cb){
+  if(G){ G.combo=0; G.comboT=0; } hideCombo();
   const intro=$('bossIntro'), band=$('biBand');
   // 초상화: 슬러그가 있으면 직접 URL로 표시(로딩 여부 무관), 없으면 도트 SVG
   const slug = ENEMY_LORD_SLUG[lord.n] || HERO_SLUG[lord.n];
