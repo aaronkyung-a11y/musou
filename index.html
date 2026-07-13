@@ -488,7 +488,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v4.11";
+const GAME_VER = "v5.0";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -500,8 +500,12 @@ else { applyVersionTags(); }
    BGM — Web Audio 절차적 배경음악 (동양풍 5음계)
    ========================================================= */
 const BGM = {
-  ctx:null, master:null, playing:false, timer:null, step:0, mode:'menu',
+  ctx:null, master:null,          // SFX가 공유하는 AudioContext (유지)
+  tracks:{}, cur:null, curMode:null, enabled:true, faction:'촉',
+  // 상황별 MP3 경로. boss는 무장별 확장 여지(bgm_boss_<slug>.mp3 우선, 없으면 기본)
+  SRC:{ menu:'assets/bgm_menu.mp3', battle:'assets/bgm_battle.mp3', boss:'assets/bgm_boss.mp3', ending:'assets/bgm_ending.mp3' },
   init(){
+    // SFX용 AudioContext (효과음이 이걸 공유하므로 반드시 유지)
     if(this.ctx) return;
     try{
       this.ctx = new (window.AudioContext||window.webkitAudioContext)();
@@ -510,74 +514,62 @@ const BGM = {
       this.master.connect(this.ctx.destination);
     }catch(e){ this.ctx=null; }
   },
-  // 음 하나 (관악/현악 느낌)
-  note(freq, t, dur, type, vol){
-    if(!this.ctx) return;
-    const o=this.ctx.createOscillator(), g=this.ctx.createGain();
-    o.type=type||'triangle'; o.frequency.value=freq;
-    o.connect(g); g.connect(this.master);
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(vol||0.2, t+0.02);
-    g.gain.exponentialRampToValueAtTime(0.001, t+dur);
-    o.start(t); o.stop(t+dur+0.05);
+  _get(mode){
+    // 오디오 엘리먼트 lazy 생성 + 캐시
+    if(this.tracks[mode]) return this.tracks[mode];
+    const a=new Audio();
+    a.src=this.SRC[mode]||this.SRC.menu;
+    a.loop=true; a.preload='auto'; a.volume=0;
+    this.tracks[mode]=a;
+    return a;
   },
-  // 드럼 (전투용)
-  drum(t, vol){
-    if(!this.ctx) return;
-    const o=this.ctx.createOscillator(), g=this.ctx.createGain();
-    o.type='sine'; o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(50, t+0.12);
-    o.connect(g); g.connect(this.master);
-    g.gain.setValueAtTime(vol||0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.15);
-    o.start(t); o.stop(t+0.2);
+  _fade(audio, to, ms){
+    if(!audio) return;
+    const from=audio.volume, steps=14, iv=Math.max(16,ms/steps);
+    let i=0;
+    if(audio._fadeT) clearInterval(audio._fadeT);
+    audio._fadeT=setInterval(()=>{
+      i++; const v=from+(to-from)*(i/steps);
+      try{ audio.volume=Math.max(0,Math.min(1,v)); }catch(e){}
+      if(i>=steps){ clearInterval(audio._fadeT); audio._fadeT=null;
+        if(to===0){ try{ audio.pause(); }catch(e){} } }
+    }, iv);
   },
+  _play(mode){
+    if(!this.enabled) return;
+    // boss는 무장별 곡 우선 시도
+    const a=this._get(mode);
+    // 이전 곡 페이드아웃
+    if(this.cur && this.cur!==a) this._fade(this.cur, 0, 600);
+    this.cur=a; this.curMode=mode;
+    const vol = (mode==='battle'||mode==='boss')?0.5:0.42;
+    try{
+      a.currentTime = a.currentTime; // keep
+      const pr=a.play();
+      if(pr&&pr.catch) pr.catch(()=>{});   // 자동재생 정책 실패 무시
+    }catch(e){}
+    this._fade(a, vol, 700);
+  },
+  // 기존 API 호환
   start(mode){
-    this.init(); if(!this.ctx) return;
-    if(this.ctx.state==='suspended') this.ctx.resume();
-    this.mode=mode||'menu'; this.step=0;
-    if(this.playing) return;
-    this.playing=true;
-    this.master.gain.setTargetAtTime(mode==='battle'?0.28:0.22, this.ctx.currentTime, 0.5);
-    this.loop();
+    this.init();   // SFX용 ctx 확보 겸
+    if(this.ctx&&this.ctx.state==='suspended') this.ctx.resume();
+    this.enabled=true;
+    this._play(mode||'menu');
   },
-  faction:'촉',   // 현재 진영 (진영별 곡조)
-  // 진영별 곡 데이터: {멜로디(전투), 멜로디(메뉴), 음색, 템포보정}
-  tunes:{
-    촉:{ battle:[0,2,4,5,4,2,4,7, 5,4,2,4,5,7,5,4], menu:[0,2,4,5,4,2,0,4], wave:'triangle', tempo:1.0, drumV:0.38 },
-    위:{ battle:[0,3,2,5,3,2,5,3, 0,5,3,2,7,5,3,0], menu:[0,3,2,0,3,5,3,2], wave:'sawtooth', tempo:0.9, drumV:0.5 },
-    오:{ battle:[2,4,5,4,2,4,5,7, 5,4,2,0,2,4,5,4], menu:[2,4,5,7,5,4,2,4], wave:'triangle', tempo:1.05, drumV:0.32 },
-    기타:{ battle:[0,3,4,3,5,4,7,4, 0,4,3,7,4,3,0,3], menu:[0,4,3,0,4,3,7,4], wave:'square', tempo:0.85, drumV:0.55 },
-  },
-  loop(){
-    if(!this.playing||!this.ctx) return;
-    const penta=[261.63,293.66,329.63,392.00,440.00,523.25,587.33,659.25];
-    const bass =[130.81,146.83,164.81,196.00];
-    const t=this.ctx.currentTime;
-    const battle=this.mode==='battle';
-    const tune=this.tunes[this.faction]||this.tunes['촉'];
-    const stepDur=(battle?0.28:0.42)*tune.tempo;
-    const s=this.step;
-    const melScale=battle?tune.battle:tune.menu;
-    const mi=melScale[s%melScale.length];
-    this.note(penta[mi], t, stepDur*0.9, battle?tune.wave:'triangle', battle?0.14:0.16);
-    if(s%2===0) this.note(penta[mi]*1.5, t, stepDur*0.8, 'triangle', 0.06);
-    if(s%2===0) this.note(bass[(Math.floor(s/2))%bass.length], t, stepDur*1.6, 'sine', battle?0.18:0.12);
-    if(battle){ this.drum(t, tune.drumV); if(s%2===1) this.drum(t+stepDur*0.5, tune.drumV*0.5); }
-    this.step++;
-    this.timer=setTimeout(()=>this.loop(), stepDur*1000);
-  },
-  setFaction(fac){ this.faction=fac||'촉'; },
   setMode(mode){
-    if(this.mode===mode) return;
-    this.mode=mode; this.step=0;
-    if(this.ctx&&this.playing) this.master.gain.setTargetAtTime(mode==='battle'?0.28:0.22, this.ctx.currentTime, 0.5);
+    if(this.curMode===mode) return;
+    if(!this.enabled) { this.curMode=mode; return; }
+    this._play(mode);
   },
+  setFaction(fac){ this.faction=fac||'촉'; },   // (확장용: 진영/무장별 곡 선택 시 사용)
   stop(){
-    this.playing=false; if(this.timer) clearTimeout(this.timer);
-    if(this.ctx&&this.master) this.master.gain.setTargetAtTime(0, this.ctx.currentTime, 0.3);
+    this.enabled=false;
+    if(this.cur) this._fade(this.cur, 0, 400);
   },
   toggle(){
-    if(this.playing){ this.stop(); return false; }
-    else { this.start(this.mode); return true; }
+    if(this.enabled && this.cur && !this.cur.paused){ this.stop(); return false; }
+    else { this.enabled=true; this.start(this.curMode||'menu'); return true; }
   }
 };
 
@@ -1407,7 +1399,7 @@ function startChapter(idx){
   const sc=SCENARIO[idx];
   // 도입 스토리 (일시정지)
   g._paused=true;
-  showStoryScreen(sc, ()=>{ g._paused=false; lastT=performance.now(); });
+  showStoryScreen(sc, ()=>{ g._paused=false; BGM.setMode('battle'); lastT=performance.now(); });
 }
 function showStoryScreen(sc, cb){
   const el=$('storyScreen');
@@ -1747,6 +1739,7 @@ function spawnBoss(boss){
       chargeCd:3, atkCd:2 });
     g.bossActive=true;
     g._paused=false;
+    BGM.setMode('boss');   // 적장전 음악
     lastT=performance.now();
   });
 }
@@ -3167,7 +3160,7 @@ function updateHUD(){
    ========================================================= */
 function winGame(){
   G.gameOver=true; endLoop(); hideCombo(); $('hud').classList.remove('on');
-  BGM.setMode('menu');
+  BGM.setMode('ending');
   // 전공(戰功) 정산 (기존 결과화면과 동일 규칙)
   const g=G;
   const gong = Math.round(g.kills*0.5 + g.chapter*15 + 100 + g.level*2);
