@@ -509,7 +509,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.6";
+const GAME_VER = "v5.7";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -1707,9 +1707,11 @@ function update(dt){
     p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
     if(p.life<=0){ p.dead=true; continue; }
     if(Math.hypot(p.x-g.px,p.y-g.py)<16){
-      p.dead=true;
-      if(g.buffInvul<=0){ g.hp-=p.dmg; SFX.playerHurt(); if(g.hp<=0){ g.hp=0; loseGame(); return; } }
+      if(g.buffInvul<=0 && (!p._hitT || p._hitT<=0)){ g.hp-=p.dmg; SFX.playerHurt(); if(g.hp<=0){ g.hp=0; loseGame(); return; } }
+      if(p.pierce){ p._hitT=0.3; }   // 관통탄: 안 사라지고 재타격 쿨다운
+      else p.dead=true;
     }
+    if(p._hitT>0) p._hitT-=dt;
   }
 
   // 근접 판정
@@ -1834,6 +1836,7 @@ function updateBoss(e, dx, dy, d, dt){
     // 특기 발동 (보스 유형별 성향 + 고유 시그니처)
     if(e.atkCd<=0){
       const bt=e.bossType||'balanced';
+      const nm=e.lordName;
       const r=Math.random();
       const pick=(type)=>{ e.state=type; e.stateT=0;
         if(type==='telegraph'){ e.chargeDir=Math.atan2(dy,dx); bossToast(e,'돌격!'); }
@@ -1843,23 +1846,29 @@ function updateBoss(e, dx, dy, d, dt){
         else if(type==='rampage'){ e.rampageN=0; bossToast(e,'맹공!'); }       // rusher 시그니처
         else if(type==='ringfire'){ e.ringN=0; bossToast(e,'천공난사!'); }      // archer 시그니처
         else if(type==='crossfire'){ e.crossN=0; bossToast(e,'만천화우!'); }    // master 시그니처
+        else if(type==='lubuSpin'){ e.spinN=0; bossToast(e,'方天無雙!'); }      // 여포 전용
+        else if(type==='guanyuSlash'){ e.gySlashN=0; bossToast(e,'靑龍偃月!'); } // 관우 전용
+        else if(type==='zhangfeiRoar'){ bossToast(e,'長坂大喝!'); }             // 장비 전용
+        else if(type==='huangSnipe'){ e.snipeN=0; bossToast(e,'定軍山狙擊!'); } // 황충 전용
       };
-      if(bt==='rusher'){
-        // 연속 돌진(맹공) + 강타. 난사 안 함
+      // === 무장별 고유 시그니처 (거물급) — 타입 패턴보다 우선 ===
+      if(nm==='여포' && r<0.4){ pick('lubuSpin'); e.atkCd=2.2; }
+      else if(nm==='관우' && r<0.4){ pick('guanyuSlash'); e.atkCd=2.0; }
+      else if(nm==='장비' && r<0.5){ pick('zhangfeiRoar'); e.atkCd=2.0; }
+      else if(nm==='황충' && r<0.5){ pick('huangSnipe'); e.atkCd=2.4; }
+      else if(bt==='rusher'){
         if(d>150 && r<0.45) pick('telegraph');
-        else if(r<0.75) pick('rampage');   // 시그니처: 3연속 돌진
+        else if(r<0.75) pick('rampage');
         else pick('slamWind');
         e.atkCd=2.0;
       } else if(bt==='archer'){
-        // 원형 탄막(천공난사) + 저격. 근접 시 강타로 쫓아냄
-        if(r<0.55) pick('ringfire');   // 시그니처: 사방 화살 링
+        if(r<0.55) pick('ringfire');
         else if(r<0.8) pick('volley');
         else if(d<180) pick('slamWind');
         else pick('telegraph');
         e.atkCd=2.4;
       } else if(bt==='master'){
-        // 십자 탄막(만천화우) + 텔레포트 + 전부. 최다 빈도
-        if(r<0.3) pick('crossfire');   // 시그니처: 회전 십자 탄막
+        if(r<0.3) pick('crossfire');
         else if(r<0.5) pick('blink');
         else if(r<0.68) pick('telegraph');
         else if(r<0.84) pick('slamWind');
@@ -1919,6 +1928,68 @@ function updateBoss(e, dx, dy, d, dt){
       for(let k=0;k<4;k++){ const a=e.crossAng+k*(Math.PI/2);
         g.eProjectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260,dmg:e.dmg*0.4,life:3.0,dead:false}); }
       if((e.crossN||0)>=18){ e.state='chase'; e.atkCd=2.2; }
+    }
+  }
+  else if(e.state==='lubuSpin'){
+    // 여포 방천무쌍: 제자리 회전하며 초광역 참격 + 전방위 탄막을 3파 발사, 이후 돌진
+    e.spinT=(e.spinT||0)+dt;
+    e.spinAng=(e.spinAng||0)+dt*8;   // 빠른 회전
+    // 회전 참격 판정(근접 광역)
+    if(d<e.r+70 && g.buffInvul<=0){ g.hp-=e.dmg*dt*1.2; if(g.hp<=0){g.hp=0;loseGame();return;} }
+    for(let i=0;i<2;i++){ const a=e.spinAng+i*Math.PI; g.particles.push({x:e.x+Math.cos(a)*60,y:e.y+Math.sin(a)*60,vx:0,vy:0,life:0.2,col:'#c060ff',r:6}); }
+    if(e.spinT>0.4){
+      e.spinT=0; e.spinN=(e.spinN||0)+1;
+      const n=10, off=e.spinN*0.4;
+      for(let i=0;i<n;i++){ const a=(i/n)*Math.PI*2+off;
+        g.eProjectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260,dmg:e.dmg*0.45,life:3,dead:false,col:'#c060ff'}); }
+      camShake=1.4;
+      if((e.spinN||0)>=3){ e.chargeDir=Math.atan2(dy,dx); e.state='telegraph'; e.stateT=0; }  // 마무리 돌진
+    }
+  }
+  else if(e.state==='guanyuSlash'){
+    // 관우 청룡언월: 전방 부채꼴 화염 대참격 3연 (조준→발사)
+    e.gyT=(e.gyT||0)+dt;
+    if(e.gyT<0.4){ e.gyAim=Math.atan2(dy,dx); }  // 조준
+    else if(e.gyT>=0.4){
+      e.gyT=0; e.gySlashN=(e.gySlashN||0)+1;
+      const base=e.gyAim||Math.atan2(dy,dx);
+      // 부채꼴 화염 참격 (7갈래 관통 화염탄)
+      for(let i=-3;i<=3;i++){ const a=base+i*0.18;
+        g.eProjectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*340,vy:Math.sin(a)*340,dmg:e.dmg*0.5,life:2.2,dead:false,col:'#ff3020'}); }
+      for(let i=0;i<12;i++){ const a=base+(Math.random()-.5)*1.2; g.particles.push({x:e.x+Math.cos(a)*40,y:e.y+Math.sin(a)*40,vx:Math.cos(a)*120,vy:Math.sin(a)*120,life:0.4,col:'#ff5020',r:5}); }
+      camShake=1.6;
+      if((e.gySlashN||0)>=3){ e.state='chase'; e.atkCd=2.0; }
+    }
+  }
+  else if(e.state==='zhangfeiRoar'){
+    // 장비 장판대갈: 제자리 강타 → 사방 충격파 링 (강한 넉백)
+    e.zfT=(e.zfT||0)+dt;
+    if(e.zfT>0.5){
+      // 충격파 발동
+      const n=20;
+      for(let i=0;i<n;i++){ const a=(i/n)*Math.PI*2;
+        g.eProjectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*300,vy:Math.sin(a)*300,dmg:e.dmg*0.6,life:1.6,dead:false,col:'#ffb040',knock:true}); }
+      // 근접 넉백
+      if(d<180){ const a=Math.atan2(g.py-e.y,g.px-e.x); g.px+=Math.cos(a)*80; g.py+=Math.sin(a)*80;
+        if(g.buffInvul<=0){ g.hp-=e.dmg*0.8; if(g.hp<=0){g.hp=0;loseGame();return;} } }
+      for(let i=0;i<24;i++){ const a=Math.random()*Math.PI*2,sp=150+Math.random()*200;
+        g.particles.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.5,col:'#ffb040',r:5}); }
+      camShake=3; SFX.bossRoar&&SFX.bossRoar();
+      e.state='chase'; e.atkCd=2.2;
+    }
+  }
+  else if(e.state==='huangSnipe'){
+    // 황충 정군산저격: 잠깐 정지 조준(조준선) 후 초고속 관통 저격탄 3연
+    e.snT=(e.snT||0)+dt;
+    if(e.snT<0.6){ e.snAim=Math.atan2(g.py-e.y,g.px-e.x); /* 조준 유지 */ }
+    else {
+      e.snT=0; e.snipeN=(e.snipeN||0)+1;
+      const a=e.snAim||Math.atan2(dy,dx);
+      // 초고속 관통 저격탄
+      g.eProjectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*620,vy:Math.sin(a)*620,dmg:e.dmg*0.9,life:2.5,dead:false,col:'#ff9020',pierce:true});
+      for(let i=0;i<8;i++) g.particles.push({x:e.x,y:e.y,vx:Math.cos(a)*200,vy:Math.sin(a)*200,life:0.3,col:'#ffd060',r:3});
+      camShake=1;
+      if((e.snipeN||0)>=3){ e.state='chase'; e.atkCd=2.4; }
     }
   }
   else if(e.state==='blink'){
@@ -2739,7 +2810,8 @@ function render(){
     ctx.restore();
   }
   // 적 투사체
-  for(const p of g.eProjectiles){ ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fillStyle='#ff6a4a'; ctx.fill(); }
+  for(const p of g.eProjectiles){ const pr=p.pierce?6:4; ctx.beginPath(); ctx.arc(p.x,p.y,pr,0,Math.PI*2); ctx.fillStyle=p.col||'#ff6a4a'; ctx.fill();
+    if(p.col){ ctx.beginPath(); ctx.arc(p.x,p.y,pr+2,0,Math.PI*2); ctx.strokeStyle=p.col; ctx.globalAlpha=0.4; ctx.stroke(); ctx.globalAlpha=1; } }
 
   // 적
   for(const e of g.enemies){ const a=e.dead?Math.max(0,1-e.deathAge/0.3):1; drawEnemy(e,a); }
