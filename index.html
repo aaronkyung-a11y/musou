@@ -509,7 +509,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.5";
+const GAME_VER = "v5.6";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -563,7 +563,7 @@ const BGM = {
     // 이전 곡 페이드아웃
     if(this.cur && this.cur!==a) this._fade(this.cur, 0, 600);
     this.cur=a; this.curMode=mode;
-    const vol = (mode==='battle'||mode==='boss')?0.5:0.42;
+    const vol = (mode==='battle'||mode==='boss')?0.36:0.4;
     try{
       a.currentTime = a.currentTime; // keep
       const pr=a.play();
@@ -605,7 +605,7 @@ const SFX = {
     if(BGM.ctx){
       if(BGM.ctx.state==='suspended') BGM.ctx.resume();
       if(!this.master){
-        this.master=BGM.ctx.createGain(); this.master.gain.value=0.7; this.master.connect(BGM.ctx.destination);
+        this.master=BGM.ctx.createGain(); this.master.gain.value=1.15; this.master.connect(BGM.ctx.destination);
       }
     }
     return BGM.ctx;
@@ -655,28 +655,29 @@ const SFX = {
     o.start(t); o.stop(t+dur+0.02);
   },
   // --- 실제 효과음 (레이어 조합) ---
-  // 기본 타격: 날카로운 검격 노이즈 + 저역 툭 (살점 때리는 무게)
+  // 기본 타격: 날카로운 검격 노이즈 + 저역 툭 + 고역 착 (음악 위로 뚫고 나옴)
   hit(){
     const now=performance.now(); if(now-this.lastHit<40) return; this.lastHit=now;
-    this.noiseBurst(0.05, 0.16, 'bandpass', 2600, 0.8);   // 검날 스침
-    this.thud(150, 0.07, 0.22, 60);                        // 임팩트 몸통
+    this.noiseBurst(0.05, 0.3, 'bandpass', 2800, 0.8);    // 검날 스침
+    this.noiseBurst(0.03, 0.2, 'highpass', 5000, 0.5);    // 고역 착 (잘 들림)
+    this.thud(160, 0.08, 0.4, 60);                        // 임팩트 몸통
   },
-  // 적 피격 (퍽): 짧고 둔탁
+  // 적 피격 (퍽): 짧고 둔탁하지만 확실히 들리게
   enemyHit(){ const now=performance.now(); if(now-(this._lastEH||0)<35) return; this._lastEH=now;
-    this.noiseBurst(0.04, 0.11, 'bandpass', 1500, 0.7);
-    this.thud(110, 0.05, 0.16, 50);
+    this.noiseBurst(0.04, 0.22, 'bandpass', 1800, 0.7);
+    this.thud(120, 0.06, 0.3, 50);
   },
   // 크리티컬: 금속 챙 + 강한 저역 펀치 + 노이즈
   crit(){
-    this.noiseBurst(0.08, 0.2, 'highpass', 3000, 0.6);
-    this.metal(720, 0.16, 0.16);
-    this.thud(200, 0.12, 0.34, 70);
+    this.noiseBurst(0.08, 0.32, 'highpass', 3200, 0.6);
+    this.metal(760, 0.16, 0.26);
+    this.thud(210, 0.13, 0.5, 70);
   },
   // 스킬: 저역 스웰 + 밴드 노이즈 스윕 (묵직한 발동감)
   skill(){
-    this.noiseBurst(0.18, 0.16, 'bandpass', 900, 0.9);
-    this.thud(180, 0.18, 0.28, 80);
-    this.metal(400, 0.12, 0.1);
+    this.noiseBurst(0.18, 0.26, 'bandpass', 1000, 0.9);
+    this.thud(190, 0.2, 0.42, 80);
+    this.metal(440, 0.14, 0.18);
   },
   // 필살기: 서브베이스 폭발 + 긴 노이즈 스윕 + 금속 (묵직+화려)
   ult(){
