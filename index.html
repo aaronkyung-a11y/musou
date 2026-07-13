@@ -488,7 +488,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.0";
+const GAME_VER = "v5.1";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -3250,7 +3250,31 @@ preloadEnemyLordImages();
 </script>
 <script>
 if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      // 주기적으로 업데이트 확인 (앱을 계속 켜둬도 새 버전 감지)
+      reg.update();
+      setInterval(()=>reg.update(), 60*1000);
+      // 새 서비스워커가 설치되면 자동 활성화
+      reg.addEventListener('updatefound', ()=>{
+        const nw=reg.installing;
+        if(!nw) return;
+        nw.addEventListener('statechange', ()=>{
+          if(nw.state==='installed' && navigator.serviceWorker.controller){
+            // 새 버전 대기 중 → 즉시 교체 요청
+            nw.postMessage&&nw.postMessage('skipWaiting');
+            if(reg.waiting) reg.waiting.postMessage('skipWaiting');
+          }
+        });
+      });
+    }).catch(()=>{});
+    // 컨트롤러(활성 SW)가 바뀌면 새 콘텐츠 반영 위해 1회 새로고침
+    let _reloaded=false;
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+      if(_reloaded) return; _reloaded=true;
+      window.location.reload();
+    });
+  });
 }
 </script>
 </body>
