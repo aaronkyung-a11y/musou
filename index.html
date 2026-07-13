@@ -290,6 +290,30 @@
     animation:sgPulse 1.4s ease-in-out infinite; }
   @keyframes sgPulse{ 0%,100%{opacity:.45} 50%{opacity:1} }
   #saveStatus{ position:absolute; bottom:32px; right:14px; text-align:right; font-size:11px; letter-spacing:.5px; z-index:5; pointer-events:none; }
+  /* 도전과제 */
+  #achScreen{ overflow-y:auto; padding:24px 16px; align-items:flex-start; }
+  .ach-grid{ width:100%; max-width:460px; margin:0 auto 16px; display:flex; flex-direction:column; gap:8px; }
+  .ach-item{ display:flex; align-items:center; gap:12px; background:rgba(0,0,0,.3); border:1px solid rgba(255,190,80,.18);
+    border-radius:12px; padding:11px 14px; }
+  .ach-item.done{ border-color:rgba(255,208,80,.55); background:rgba(60,44,16,.4); }
+  .ach-item.locked{ opacity:.5; }
+  .ach-ic{ font-size:26px; width:34px; text-align:center; filter:grayscale(1); }
+  .ach-item.done .ach-ic{ filter:none; }
+  .ach-txt{ flex:1; }
+  .ach-nm{ font-size:14px; font-weight:800; color:#f0e0b0; }
+  .ach-item.locked .ach-nm{ color:#8a7a5a; }
+  .ach-d{ font-size:11px; color:#9a8666; margin-top:2px; }
+  .ach-chk{ font-size:18px; }
+  /* 새 업적 토스트 */
+  #achToast{ position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:10000;
+    display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none; }
+  .ach-toast-item{ background:linear-gradient(180deg,rgba(60,44,16,.96),rgba(30,22,8,.96)); border:1.5px solid #ffd050;
+    border-radius:12px; padding:10px 18px; text-align:center; box-shadow:0 4px 20px rgba(0,0,0,.5);
+    animation:achPop .4s ease, achFade .4s ease 2.6s forwards; }
+  @keyframes achPop{ from{opacity:0; transform:translateY(-16px) scale(.9)} to{opacity:1; transform:none} }
+  @keyframes achFade{ to{opacity:0; transform:translateY(-10px)} }
+  .ach-toast-item .att-label{ font-size:10px; color:#ffd050; letter-spacing:2px; }
+  .ach-toast-item .att-name{ font-size:15px; font-weight:800; color:#fff; margin-top:2px; }
   #hudVer{ position:absolute; bottom:6px; right:8px; font-size:10px; color:rgba(180,150,100,.45); letter-spacing:1px; z-index:11; pointer-events:none; text-shadow:0 1px 2px rgba(0,0,0,.6); }
 
   /* 콤보 카운터 */
@@ -446,6 +470,7 @@
     <div class="sub-title">무 쌍 기 · 일기당천</div>
     <button class="menu-btn" onclick="goSelect()">출진</button>
     <button class="menu-btn sm" onclick="openShop()">🎖️ 병영 (영구 강화)</button>
+    <button class="menu-btn sm" onclick="openAchievements()">🏆 도전과제</button>
     <button class="menu-btn sm" onclick="showHelp()">조작 방법</button>
     <button class="menu-btn sm" id="bgmBtn" onclick="toggleBGM()">🔊 음악 ON</button>
     <div id="saveStatus"></div>
@@ -479,6 +504,13 @@
     <button class="menu-btn sm" onclick="toTitle()">타이틀로</button>
   </div>
 
+  <div class="screen" id="achScreen">
+    <div class="sel-head">🏆 도전과제</div>
+    <div class="sel-sub">달성 <b id="achCount" style="color:#ffd050">0/0</b></div>
+    <div class="ach-grid" id="achGrid"></div>
+    <button class="menu-btn sm" onclick="toTitle()">돌아가기</button>
+  </div>
+
   <div class="screen" id="endingScreen">
     <div class="ending-scroll">
       <div class="ending-badge">天下統一</div>
@@ -509,7 +541,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.10";
+const GAME_VER = "v5.11";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -954,7 +986,9 @@ function normalizeMeta(m){
     gongxun: m.gongxun||0,
     levels: m.levels||{},
     unlocked: Array.isArray(m.unlocked)&&m.unlocked.length ? m.unlocked : DEFAULT_UNLOCK.slice(),
-    records: m.records||{}
+    records: m.records||{},
+    achievements: Array.isArray(m.achievements)? m.achievements : [],
+    totalClears: m.totalClears||0
   };
 }
 function loadMeta(){
@@ -1004,7 +1038,9 @@ function mergeMeta(a,b){
       cleared: !!(ra.cleared||rb.cleared)
     };
   }
-  return { gongxun: Math.max(a.gongxun,b.gongxun), levels, unlocked, records };
+  return { gongxun: Math.max(a.gongxun,b.gongxun), levels, unlocked, records,
+    achievements: Array.from(new Set([...a.achievements, ...b.achievements])),
+    totalClears: Math.max(a.totalClears, b.totalClears) };
 }
 function scheduleRemoteSave(){
   if(!SAVE_URL||!SAVE_KEY) return;
@@ -1163,6 +1199,75 @@ const ENDINGS={
     lines:["동남풍을 빌려 적벽을 불바다로 만든 그 지략.","주공근의 화공 한 번에 조조의 백만 대군이 재가 되었으니,","강동의 젊은 도독은 오나라를 지켜낸 불꽃이 되었다."] },
 };
 function heroEnding(slug){ return ENDINGS[slug] || { title:"천하를 평정하다", col:"#ffd050", lines:["난세를 종식시킨 그 이름은 역사에 길이 남았다."] }; }
+
+/* =========================================================
+   도전과제 (업적) — META.achievements 에 달성 id 저장
+   check(ctx): 게임 결과 컨텍스트로 달성 여부 판정
+   ctx = { win, kills, maxCombo, time, level, awakened, noHit, hero, meta }
+   ========================================================= */
+const ACHIEVEMENTS=[
+  { id:'first_win', ic:'🏆', name:'첫 승리', d:'처음으로 천하통일 달성', check:c=>c.win },
+  { id:'clear_5',   ic:'⚔️', name:'백전노장', d:'누적 5회 클리어', check:c=>c.meta._totalClears>=5 },
+  { id:'heroes_5',  ic:'👥', name:'오호대장', d:'서로 다른 무장 5명으로 클리어', check:c=>c.meta._clearedHeroes>=5 },
+  { id:'heroes_all',ic:'👑', name:'천하의 주인', d:'14명 전원으로 클리어', check:c=>c.meta._clearedHeroes>=14 },
+  { id:'kills_100', ic:'💯', name:'백인참', d:'한 판에 100명 처치', check:c=>c.kills>=100 },
+  { id:'kills_300', ic:'🔥', name:'삼백혈전', d:'한 판에 300명 처치', check:c=>c.kills>=300 },
+  { id:'kills_500', ic:'☠️', name:'일기당천', d:'한 판에 500명 처치', check:c=>c.kills>=500 },
+  { id:'combo_50',  ic:'⚡', name:'연격의 달인', d:'50연격 달성', check:c=>c.maxCombo>=50 },
+  { id:'combo_100', ic:'🌟', name:'무쌍난무', d:'100연격 달성', check:c=>c.maxCombo>=100 },
+  { id:'combo_200', ic:'💫', name:'절대무쌍', d:'200연격 달성', check:c=>c.maxCombo>=200 },
+  { id:'awaken',    ic:'🔮', name:'각성', d:'각성 상태 달성', check:c=>c.awakened },
+  { id:'nohit_win', ic:'🛡️', name:'철벽', d:'피격 없이 클리어', check:c=>c.win&&c.noHit },
+  { id:'fast_win',  ic:'⏱️', name:'질풍노도', d:'5분 이내에 클리어', check:c=>c.win&&c.time<=300 },
+  { id:'gong_5000', ic:'🎖️', name:'전공왕', d:'누적 전공 5000 달성', check:c=>c.meta.gongxun>=5000 },
+];
+// 게임 결과로 도전과제 판정 → 새로 달성한 것 반환
+function checkAchievements(ctx){
+  META.achievements = META.achievements || [];
+  const newly=[];
+  for(const a of ACHIEVEMENTS){
+    if(META.achievements.includes(a.id)) continue;
+    try{ if(a.check(ctx)){ META.achievements.push(a.id); newly.push(a); } }catch(e){}
+  }
+  if(newly.length){ saveMeta(META); }
+  return newly;
+}
+// 각성 여부 판정 (현재 판)
+function isAwakened(g){
+  if(!g||!g.awk) return false;
+  return Object.keys(g.awk).some(k=>g.awk[k]);
+}
+// 도전과제 화면 표시
+function openAchievements(){
+  const done=META.achievements||[];
+  const grid=document.getElementById('achGrid'); grid.innerHTML='';
+  for(const a of ACHIEVEMENTS){
+    const isDone=done.includes(a.id);
+    const el=document.createElement('div');
+    el.className='ach-item '+(isDone?'done':'locked');
+    el.innerHTML=`<div class="ach-ic">${a.ic}</div>
+      <div class="ach-txt"><div class="ach-nm">${a.name}</div><div class="ach-d">${a.d}</div></div>
+      <div class="ach-chk">${isDone?'✅':'🔒'}</div>`;
+    grid.appendChild(el);
+  }
+  document.getElementById('achCount').textContent=done.length+'/'+ACHIEVEMENTS.length;
+  show('achScreen');
+}
+// 새로 달성한 업적 토스트 표시
+function showAchToast(list){
+  if(!list||!list.length) return;
+  let box=document.getElementById('achToast');
+  if(!box){ box=document.createElement('div'); box.id='achToast'; document.body.appendChild(box); }
+  list.forEach((a,i)=>{
+    setTimeout(()=>{
+      const el=document.createElement('div'); el.className='ach-toast-item';
+      el.innerHTML=`<div class="att-label">🏆 도전과제 달성</div><div class="att-name">${a.ic} ${a.name}</div>`;
+      box.appendChild(el);
+      SFX.milestone&&SFX.milestone();
+      setTimeout(()=>el.remove(), 3200);
+    }, i*400);
+  });
+}
 const STAT_LABEL={ dmg:'무력', rate:'속공', range:'범위', spd:'이속', hp:'체력',
   cdr:'전술', regen:'재생', ultc:'투기', magnet:'수집', pierce:'관통', vamp:'흡혈', crit:'급소' };
 // 현재 무장이 노리는 '다음 목표'(진화 미완료면 진화, 완료면 각성)와 req 반환. 이미 다 했으면 null.
@@ -1472,7 +1577,8 @@ function startGame(heroIdx){
     swingT:0, swingDur:0.24, swingDir:0, swingType:'slash',
     lordActive:false, animTick:0, ultPose:0, combo:0, comboT:0, maxCombo:0,
     // 시나리오
-    chapter:0, chapterKills:0, bossActive:false, bossSpawned:false, stageClear:false
+    chapter:0, chapterKills:0, bossActive:false, bossSpawned:false, stageClear:false,
+    noHit:true   // 도전과제: 피격 시 false
   };
   resize(); G.px=G.worldW/2; G.py=G.worldH/2;
   applyMeta(G);   // 영구 강화 적용
@@ -1716,7 +1822,7 @@ function update(dt){
     }
     // 접촉 대미지 (보스는 별도 처리)
     if(d<e.r+18 && e.kind!=='archer' && e.kind!=='boss'){
-      if(g.buffInvul<=0){ g.hp-=e.dmg*dt; SFX.playerHurt(); if(g.hp<=0){ g.hp=0; loseGame(); return; } }
+      if(g.buffInvul<=0){ g.hp-=e.dmg*dt; g.noHit=false; SFX.playerHurt(); if(g.hp<=0){ g.hp=0; loseGame(); return; } }
     }
   }
 
@@ -1740,7 +1846,7 @@ function update(dt){
     p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
     if(p.life<=0){ p.dead=true; continue; }
     if(Math.hypot(p.x-g.px,p.y-g.py)<16){
-      if(g.buffInvul<=0 && (!p._hitT || p._hitT<=0)){ g.hp-=p.dmg; SFX.playerHurt(); if(g.hp<=0){ g.hp=0; loseGame(); return; } }
+      if(g.buffInvul<=0 && (!p._hitT || p._hitT<=0)){ g.hp-=p.dmg; g.noHit=false; SFX.playerHurt(); if(g.hp<=0){ g.hp=0; loseGame(); return; } }
       if(p.pierce){ p._hitT=0.3; }   // 관통탄: 안 사라지고 재타격 쿨다운
       else p.dead=true;
     }
@@ -1865,7 +1971,7 @@ function updateBoss(e, dx, dy, d, dt){
     // 플레이어 추격
     e.x += dx/d*e.spd*dt; e.y += dy/d*e.spd*dt;
     // 접촉 대미지
-    if(d<e.r+18 && g.buffInvul<=0){ g.hp-=e.dmg*dt*0.6; if(g.hp<=0){g.hp=0;loseGame();return;} }
+    if(d<e.r+18 && g.buffInvul<=0){ g.hp-=e.dmg*dt*0.6; g.noHit=false; if(g.hp<=0){g.hp=0;loseGame();return;} }
     // 특기 발동 (보스 유형별 성향 + 고유 시그니처)
     if(e.atkCd<=0){
       const bt=e.bossType||'balanced';
@@ -1931,7 +2037,7 @@ function updateBoss(e, dx, dy, d, dt){
     e.dashT-=dt;
     e.x+=e.dashVx*dt; e.y+=e.dashVy*dt;
     e.x=Math.max(30,Math.min(g.worldW-30,e.x)); e.y=Math.max(30,Math.min(g.worldH-30,e.y));
-    if(d<e.r+24 && g.buffInvul<=0){ g.hp-=e.dmg; SFX.playerHurt(); camShake=2.5; if(g.hp<=0){g.hp=0;loseGame();return;} }
+    if(d<e.r+24 && g.buffInvul<=0){ g.hp-=e.dmg; g.noHit=false; SFX.playerHurt(); camShake=2.5; if(g.hp<=0){g.hp=0;loseGame();return;} }
     for(let i=0;i<3;i++) g.particles.push({x:e.x,y:e.y,vx:(Math.random()-.5)*100,vy:(Math.random()-.5)*100,life:0.3,col:'#ff8a4a',r:4});
     if(e.dashT<=0){
       if((e.rampageN||0)<3){ e.state='rampage'; e.rampageT=0; }  // 다음 돌진
@@ -1968,7 +2074,7 @@ function updateBoss(e, dx, dy, d, dt){
     e.spinT=(e.spinT||0)+dt;
     e.spinAng=(e.spinAng||0)+dt*8;   // 빠른 회전
     // 회전 참격 판정(근접 광역)
-    if(d<e.r+70 && g.buffInvul<=0){ g.hp-=e.dmg*dt*1.2; if(g.hp<=0){g.hp=0;loseGame();return;} }
+    if(d<e.r+70 && g.buffInvul<=0){ g.hp-=e.dmg*dt*1.2; g.noHit=false; if(g.hp<=0){g.hp=0;loseGame();return;} }
     for(let i=0;i<2;i++){ const a=e.spinAng+i*Math.PI; g.particles.push({x:e.x+Math.cos(a)*60,y:e.y+Math.sin(a)*60,vx:0,vy:0,life:0.2,col:'#c060ff',r:6}); }
     if(e.spinT>0.4){
       e.spinT=0; e.spinN=(e.spinN||0)+1;
@@ -2004,7 +2110,7 @@ function updateBoss(e, dx, dy, d, dt){
         g.eProjectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*300,vy:Math.sin(a)*300,dmg:e.dmg*0.6,life:1.6,dead:false,col:'#ffb040',knock:true}); }
       // 근접 넉백
       if(d<180){ const a=Math.atan2(g.py-e.y,g.px-e.x); g.px+=Math.cos(a)*80; g.py+=Math.sin(a)*80;
-        if(g.buffInvul<=0){ g.hp-=e.dmg*0.8; if(g.hp<=0){g.hp=0;loseGame();return;} } }
+        if(g.buffInvul<=0){ g.hp-=e.dmg*0.8; g.noHit=false; if(g.hp<=0){g.hp=0;loseGame();return;} } }
       for(let i=0;i<24;i++){ const a=Math.random()*Math.PI*2,sp=150+Math.random()*200;
         g.particles.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.5,col:'#ffb040',r:5}); }
       camShake=3; SFX.bossRoar&&SFX.bossRoar();
@@ -2052,7 +2158,7 @@ function updateBoss(e, dx, dy, d, dt){
     const cs=e.spd*7;
     e.x += Math.cos(e.chargeDir)*cs*dt; e.y += Math.sin(e.chargeDir)*cs*dt;
     // 돌진 중 접촉 = 큰 대미지 + 넉백
-    if(d<e.r+22 && g.buffInvul<=0){ g.hp-=e.dmg*0.8; camShake=2;
+    if(d<e.r+22 && g.buffInvul<=0){ g.hp-=e.dmg*0.8; g.noHit=false; camShake=2;
       if(g.hp<=0){g.hp=0;loseGame();return;} e.state='chase'; e.atkCd=2.5; }
     // 월드 경계
     e.x=Math.max(30,Math.min(g.worldW-30,e.x)); e.y=Math.max(30,Math.min(g.worldH-30,e.y));
@@ -2064,7 +2170,7 @@ function updateBoss(e, dx, dy, d, dt){
     if(e.stateT>0.6){
       // 강타 발동: 주변 원형 충격파
       const rng=e.slamR;
-      if(d<rng && g.buffInvul<=0){ g.hp-=e.dmg*1.2; if(g.hp<=0){g.hp=0;loseGame();return;} }
+      if(d<rng && g.buffInvul<=0){ g.hp-=e.dmg*1.2; g.noHit=false; if(g.hp<=0){g.hp=0;loseGame();return;} }
       // 시각 충격파
       g.slashes.push({type:'spin',cx:e.x,cy:e.y,range:rng,dmg:0,dir:0,half:Math.PI,age:0,dur:0.4,hitSet:new Set(),fx:{type:'spin',range:rng,big:true,enemy:true}});
       for(let i=0;i<40;i++){ const a=Math.random()*Math.PI*2,sp=200+Math.random()*300;
@@ -3375,13 +3481,21 @@ function showEnding(gong){
   // 무장별 최고 기록 갱신 + 저장
   META.records=META.records||{};
   const prev=META.records[h.n]||{};
+  const wasCleared=prev.cleared;
   META.records[h.n]={
     bestKills: Math.max(prev.bestKills||0, g.kills),
     bestCombo: Math.max(prev.bestCombo||0, g.maxCombo||0),
     bestTime:  Math.max(prev.bestTime||0,  Math.round(g.time)),
     cleared: true
   };
+  META.totalClears=(META.totalClears||0)+1;
   saveMeta(META);
+  // 도전과제 판정
+  const clearedHeroes=Object.values(META.records).filter(r=>r&&r.cleared).length;
+  const newAch=checkAchievements({ win:true, kills:g.kills, maxCombo:g.maxCombo||0,
+    time:g.time, level:g.level, awakened:isAwakened(g), noHit:g.noHit, hero:h.n,
+    meta:{ gongxun:META.gongxun, _totalClears:META.totalClears, _clearedHeroes:clearedHeroes } });
+  window._newAch=newAch;   // 엔딩 리포트에서 표시
   const ed=heroEnding(slug);
   $('endingTitle').innerHTML=`<span style="color:${ed.col}">${ed.title}</span>`;
   $('endingLines').innerHTML=ed.lines.map(l=>`<div>${l}</div>`).join('');
@@ -3420,11 +3534,17 @@ function showEnding(gong){
   ];
   $('endingReport').innerHTML=rows.map(([k,v])=>`<div class="er-row"><span class="er-k">${k}</span><span class="er-v">${v}</span></div>`).join('');
   $('endingGong').innerHTML=`<span style="color:#ffd050">🎖️ 전공 +${gong}</span> <span style="color:#9a8666">(보유 ${META.gongxun})</span>`;
-  setTimeout(()=>show('endingScreen'),700);
+  setTimeout(()=>{ show('endingScreen'); showAchToast(window._newAch); window._newAch=null; },700);
 }
 function loseGame(){
   G.gameOver=true; endLoop(); $('hud').classList.remove('on');
   BGM.setMode('menu');
+  // 도전과제 판정 (패배해도 킬/콤보/각성 업적은 달성 가능)
+  const g=G;
+  const clearedHeroes=Object.values(META.records||{}).filter(r=>r&&r.cleared).length;
+  window._newAch=checkAchievements({ win:false, kills:g.kills, maxCombo:g.maxCombo||0,
+    time:g.time, level:g.level, awakened:isAwakened(g), noHit:g.noHit, hero:g.hero.n,
+    meta:{ gongxun:META.gongxun, _totalClears:META.totalClears||0, _clearedHeroes:clearedHeroes } });
   $('resultTitle').className='result-title lose'; $('resultTitle').textContent='전 사';
   const sc=SCENARIO[G.chapter];
   showResult(`${sc.chapter} 「${sc.title}」에서 전사`); vib([100,50,100]);
@@ -3441,7 +3561,7 @@ function showResult(sub){
   $('resultStat').innerHTML=`<b style="color:${FAC_COLOR[g.hero.f]}">${g.hero.n}</b> · ${sub}<br><br>`+
     `총 처치 <b style="color:#e8756a">${g.kills}</b>명 · 도달 레벨 ${g.level}<br>`+
     `<span style="color:#ffd050">🎖️ 전공 +${gong}</span> <span style="color:#9a8666">(보유 ${META.gongxun})</span>`;
-  setTimeout(()=>show('resultScreen'),600);
+  setTimeout(()=>{ show('resultScreen'); showAchToast(window._newAch); window._newAch=null; },600);
 }
 
 resize();
