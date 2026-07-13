@@ -509,7 +509,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.2";
+const GAME_VER = "v5.3";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -3276,9 +3276,30 @@ preloadEnemyLordImages();
   let done=false;
   const enter=()=>{
     if(done) return; done=true;
-    // 오디오 컨텍스트 & BGM 시작 (사용자 제스처 안에서 호출되어야 재생 허용됨)
+    BGM.enabled=true;
     try{ BGM.init(); if(BGM.ctx&&BGM.ctx.state==='suspended') BGM.ctx.resume(); }catch(e){}
-    try{ BGM.start('menu'); }catch(e){}
+    // 무음 버퍼를 한 번 재생해 오디오 잠금 해제(iOS/모바일 대응)
+    try{
+      if(BGM.ctx){
+        const buf=BGM.ctx.createBuffer(1,1,22050);
+        const src=BGM.ctx.createBufferSource(); src.buffer=buf;
+        src.connect(BGM.ctx.destination); src.start(0);
+      }
+    }catch(e){}
+    // 메뉴 곡 재생 시도. 아직 로드 전이면 로드 완료 시 자동 재생
+    const a=BGM._get('menu');
+    BGM.cur=a; BGM.curMode='menu';
+    const tryPlay=()=>{
+      if(!BGM.enabled) return;
+      const pr=a.play();
+      if(pr&&pr.then){ pr.then(()=>{ BGM._fade(a,0.42,700); }).catch(()=>{}); }
+      else { BGM._fade(a,0.42,700); }
+    };
+    tryPlay();
+    // 첫 시도가 씹혀도 로드되면 다시 재생
+    a.addEventListener('canplaythrough', ()=>{ if(a.paused && BGM.enabled) tryPlay(); }, {once:true});
+    // 안전망: 0.4초 뒤 여전히 멈춰있으면 재시도
+    setTimeout(()=>{ if(a.paused && BGM.enabled) tryPlay(); }, 400);
     gate.classList.add('hide');
     setTimeout(()=>{ gate.style.display='none'; }, 550);
   };
