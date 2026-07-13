@@ -509,7 +509,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.4";
+const GAME_VER = "v5.5";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -603,26 +603,48 @@ const SFX = {
   ensure(){
     if(!BGM.ctx) BGM.init();
     if(BGM.ctx){
-      if(BGM.ctx.state==='suspended') BGM.ctx.resume();   // 정지 상태면 재개 (효과음 안 나오는 문제 해결)
+      if(BGM.ctx.state==='suspended') BGM.ctx.resume();
       if(!this.master){
-        this.master=BGM.ctx.createGain(); this.master.gain.value=0.6; this.master.connect(BGM.ctx.destination);
+        this.master=BGM.ctx.createGain(); this.master.gain.value=0.7; this.master.connect(BGM.ctx.destination);
       }
     }
     return BGM.ctx;
   },
-  // 짧은 노이즈 버스트 (검격/타격)
-  noise(dur, vol, hp){
+  // --- 저수준 빌딩블록 ---
+  // 필터링된 노이즈 버스트 (bp=밴드패스 중심, q=날카로움)
+  noiseBurst(dur, vol, type, freq, q){
     const ctx=this.ensure(); if(!ctx||this.muted) return;
+    const t=ctx.currentTime;
     const n=Math.floor(ctx.sampleRate*dur);
     const buf=ctx.createBuffer(1,n,ctx.sampleRate); const d=buf.getChannelData(0);
-    for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+    for(let i=0;i<n;i++){ const env=Math.pow(1-i/n, 1.8); d[i]=(Math.random()*2-1)*env; }
     const src=ctx.createBufferSource(); src.buffer=buf;
-    const f=ctx.createBiquadFilter(); f.type='highpass'; f.frequency.value=hp||800;
-    const g=ctx.createGain(); g.gain.value=vol||0.3;
-    src.connect(f); f.connect(g); g.connect(this.master);
-    src.start();
+    const f=ctx.createBiquadFilter(); f.type=type||'bandpass'; f.frequency.value=freq||1200; f.Q.value=q||1.0;
+    const g=ctx.createGain(); g.gain.setValueAtTime(vol||0.3, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+    src.connect(f); f.connect(g); g.connect(this.master); src.start(t);
   },
-  tone(freq, dur, type, vol, slideTo){
+  // 저역 임팩트 (사인 "툭/둥") — 타격의 몸통
+  thud(freq, dur, vol, slideTo){
+    const ctx=this.ensure(); if(!ctx||this.muted) return;
+    const t=ctx.currentTime;
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine'; o.frequency.setValueAtTime(freq, t);
+    o.frequency.exponentialRampToValueAtTime(slideTo||freq*0.4, t+dur);
+    g.gain.setValueAtTime(vol||0.4, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t+dur+0.02);
+  },
+  // 금속성 링 (크리/검격 광택) — 삼각+빠른 감쇠
+  metal(freq, dur, vol){
+    const ctx=this.ensure(); if(!ctx||this.muted) return;
+    const t=ctx.currentTime;
+    const o=ctx.createOscillator(), o2=ctx.createOscillator(), g=ctx.createGain();
+    o.type='triangle'; o.frequency.setValueAtTime(freq,t);
+    o2.type='square'; o2.frequency.setValueAtTime(freq*1.5,t); // 불협 배음 → 금속감
+    const g2=ctx.createGain(); g2.gain.value=0.3; o2.connect(g2); g2.connect(g);
+    g.gain.setValueAtTime(vol||0.2, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+    o.connect(g); g.connect(this.master); o.start(t); o2.start(t); o.stop(t+dur+0.02); o2.stop(t+dur+0.02);
+  },
+  tone(freq, dur, type, vol, slideTo){  // (호환 유지용)
     const ctx=this.ensure(); if(!ctx||this.muted) return;
     const t=ctx.currentTime;
     const o=ctx.createOscillator(), g=ctx.createGain();
@@ -632,28 +654,53 @@ const SFX = {
     g.gain.setValueAtTime(vol||0.25,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
     o.start(t); o.stop(t+dur+0.02);
   },
-  // 기본 타격 (연타 방지 스로틀)
+  // --- 실제 효과음 (레이어 조합) ---
+  // 기본 타격: 날카로운 검격 노이즈 + 저역 툭 (살점 때리는 무게)
   hit(){
     const now=performance.now(); if(now-this.lastHit<40) return; this.lastHit=now;
-    this.noise(0.06, 0.18, 1100);
+    this.noiseBurst(0.05, 0.16, 'bandpass', 2600, 0.8);   // 검날 스침
+    this.thud(150, 0.07, 0.22, 60);                        // 임팩트 몸통
   },
-  // 적 피격 (퍽) — 스로틀
-  enemyHit(){ const now=performance.now(); if(now-(this._lastEH||0)<35) return; this._lastEH=now; this.noise(0.045, 0.13, 700); },
-  // 크리티컬
-  crit(){ this.noise(0.09,0.22,500); this.tone(880,0.12,'square',0.15,220); },
-  // 스킬
-  skill(){ this.tone(520,0.18,'sawtooth',0.2,180); this.noise(0.12,0.18,700); },
-  // 필살기
-  ult(){ this.tone(300,0.5,'sawtooth',0.28,90); this.noise(0.4,0.25,400);
-    const ctx=this.ensure(); if(ctx&&!this.muted) setTimeout(()=>this.tone(660,0.35,'square',0.2,180),120); },
-  // 보스 등장 (둥~)
-  bossRoar(){ this.tone(110,0.7,'sawtooth',0.32,70); },
-  // 플레이어 피격
-  playerHurt(){ const now=performance.now(); if(now-(this._lastHurt||0)<250) return; this._lastHurt=now; this.tone(200,0.2,'square',0.2,90); },
-  // 처치 마일스톤
-  milestone(){ this.tone(440,0.15,'square',0.2); setTimeout(()=>this.tone(660,0.2,'square',0.2),120); },
-  // 스테이지 클리어 팡파레
-  fanfare(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>this.tone(f,0.25,'triangle',0.22),i*130)); },
+  // 적 피격 (퍽): 짧고 둔탁
+  enemyHit(){ const now=performance.now(); if(now-(this._lastEH||0)<35) return; this._lastEH=now;
+    this.noiseBurst(0.04, 0.11, 'bandpass', 1500, 0.7);
+    this.thud(110, 0.05, 0.16, 50);
+  },
+  // 크리티컬: 금속 챙 + 강한 저역 펀치 + 노이즈
+  crit(){
+    this.noiseBurst(0.08, 0.2, 'highpass', 3000, 0.6);
+    this.metal(720, 0.16, 0.16);
+    this.thud(200, 0.12, 0.34, 70);
+  },
+  // 스킬: 저역 스웰 + 밴드 노이즈 스윕 (묵직한 발동감)
+  skill(){
+    this.noiseBurst(0.18, 0.16, 'bandpass', 900, 0.9);
+    this.thud(180, 0.18, 0.28, 80);
+    this.metal(400, 0.12, 0.1);
+  },
+  // 필살기: 서브베이스 폭발 + 긴 노이즈 스윕 + 금속 (묵직+화려)
+  ult(){
+    const ctx=this.ensure(); if(!ctx||this.muted) return;
+    this.thud(90, 0.5, 0.42, 35);          // 서브베이스 폭발
+    this.noiseBurst(0.45, 0.26, 'lowpass', 1800, 0.5);  // 폭풍 스윕
+    this.metal(300, 0.3, 0.14);
+    setTimeout(()=>{ this.metal(600, 0.25, 0.16); this.thud(140,0.2,0.24,60); }, 130);
+  },
+  // 보스 등장: 낮고 위협적인 둥~ (서브베이스 + 왜곡 노이즈)
+  bossRoar(){
+    this.thud(70, 0.9, 0.44, 40);
+    this.noiseBurst(0.5, 0.2, 'lowpass', 500, 0.7);
+    setTimeout(()=>this.thud(55, 0.6, 0.3, 30), 200);
+  },
+  // 플레이어 피격: 둔탁한 저역 + 짧은 노이즈
+  playerHurt(){ const now=performance.now(); if(now-(this._lastHurt||0)<250) return; this._lastHurt=now;
+    this.thud(160, 0.2, 0.3, 60); this.noiseBurst(0.1, 0.14, 'bandpass', 600, 0.8);
+  },
+  // 처치 마일스톤: 상승 금속 2연타
+  milestone(){ this.metal(520,0.14,0.16); this.thud(120,0.1,0.2,50);
+    setTimeout(()=>{ this.metal(780,0.16,0.16); }, 110); },
+  // 스테이지 클리어 팡파레: 금속 상승 아르페지오 + 저역 받침
+  fanfare(){ [392,523,659,880].forEach((f,i)=>setTimeout(()=>{ this.metal(f,0.3,0.2); if(i===0)this.thud(130,0.4,0.28,60); }, i*140)); },
 };
 /* 무장 해금 비용(전공). 기본 3인(관우·조운·장비)은 0. 강할수록 비쌈 */
 const HERO_UNLOCK_COST={
