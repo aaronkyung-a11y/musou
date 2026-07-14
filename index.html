@@ -29,6 +29,9 @@
   .menu-btn:active{ transform:translateY(4px); box-shadow:0 2px 0 #8a6a20; }
   .menu-btn.sm{ font-size:15px; padding:11px 30px; margin-top:10px;
     background:linear-gradient(180deg,#4a4038,#332b24); color:#e8dcc0; box-shadow:0 4px 0 #1a1410; }
+  /* 작은 버튼 2열 배치 (세로 공간 절약) */
+  .menu-row{ display:flex; gap:10px; margin-top:10px; width:min(92vw,360px); }
+  .menu-row .menu-btn.sm{ flex:1; margin-top:0; padding:12px 8px; white-space:nowrap; }
 
   /* 무장 선택 — 그리드로 고정, 글자 잘림 방지 */
   #selectScreen{ justify-content:flex-start; padding:14px 12px; overflow-y:auto; }
@@ -473,10 +476,14 @@
     <div class="brush-title">無雙記</div>
     <div class="sub-title">무 쌍 기 · 일기당천</div>
     <button class="menu-btn" onclick="goSelect()">출진</button>
-    <button class="menu-btn sm" onclick="openShop()">🎖️ 병영 (영구 강화)</button>
-    <button class="menu-btn sm" onclick="openAchievements()">🏆 도전과제</button>
-    <button class="menu-btn sm" onclick="showHelp()">조작 방법</button>
-    <button class="menu-btn sm" id="bgmBtn" onclick="toggleBGM()">🔊 음악 ON</button>
+    <div class="menu-row">
+      <button class="menu-btn sm" onclick="openShop()">🎖️ 병영</button>
+      <button class="menu-btn sm" onclick="openAchievements()">🏆 도전과제</button>
+    </div>
+    <div class="menu-row">
+      <button class="menu-btn sm" onclick="showHelp()">📖 조작 방법</button>
+      <button class="menu-btn sm" id="bgmBtn" onclick="toggleBGM()">🔊 음악 ON</button>
+    </div>
     <div id="saveStatus"></div>
     <div id="verTag"></div>
   </div>
@@ -545,7 +552,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.17";
+const GAME_VER = "v5.18";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
