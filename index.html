@@ -541,7 +541,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.11";
+const GAME_VER = "v5.12";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -576,6 +576,20 @@ const BGM = {
     this.tracks[mode]=a;
     return a;
   },
+  // 무장별 전용 보스곡 (bgm_boss_<slug>.mp3 존재 시 사용). 없으면 기본으로 폴백.
+  BOSS_TRACKS:{ '여포':'lubu' },   // 전용곡 있는 무장만 등록
+  _bossFor(lordName){
+    const slug=this.BOSS_TRACKS[lordName]; if(!slug) return null;
+    const key='boss_'+slug;
+    if(this.tracks[key]) return this.tracks[key];
+    const a=new Audio(); a.src='assets/bgm_boss_'+slug+'.mp3';
+    a.loop=true; a.preload='auto'; a.volume=0;
+    // 파일 없으면 기본 보스곡으로 폴백 처리
+    a.addEventListener('error', ()=>{ this.tracks[key]='__fail__'; });
+    this.tracks[key]=a;
+    return a;
+  },
+  setBossLord(lordName){ this._bossLord=lordName; },   // spawnBoss에서 호출
   _fade(audio, to, ms){
     if(!audio) return;
     const from=audio.volume, steps=14, iv=Math.max(16,ms/steps);
@@ -590,16 +604,21 @@ const BGM = {
   },
   _play(mode){
     if(!this.enabled) return;
-    // boss는 무장별 곡 우선 시도
-    const a=this._get(mode);
+    // boss 모드: 전용곡이 있고 로드 가능하면 그걸, 아니면 기본 보스곡
+    let a;
+    if(mode==='boss' && this._bossLord){
+      const bt=this._bossFor(this._bossLord);
+      a = (bt && bt!=='__fail__') ? bt : this._get('boss');
+    } else {
+      a=this._get(mode);
+    }
     // 이전 곡 페이드아웃
     if(this.cur && this.cur!==a) this._fade(this.cur, 0, 600);
     this.cur=a; this.curMode=mode;
     const vol = (mode==='battle'||mode==='boss')?0.36:0.4;
     try{
-      a.currentTime = a.currentTime; // keep
       const pr=a.play();
-      if(pr&&pr.catch) pr.catch(()=>{});   // 자동재생 정책 실패 무시
+      if(pr&&pr.catch) pr.catch(()=>{});
     }catch(e){}
     this._fade(a, vol, 700);
   },
@@ -1605,6 +1624,7 @@ function startChapter(idx){
   const g=G; g.chapter=idx; g.chapterKills=0;
   g.bossActive=false; g.bossSpawned=false; g.stageClear=false;
   g.combo=0; g.comboT=0; hideCombo();   // 장 전환 시 콤보 잔상 제거
+  BGM.setBossLord(null);   // 보스 전용곡 상태 초기화
   const sc=SCENARIO[idx];
   // 도입 스토리 (일시정지)
   g._paused=true;
@@ -1950,6 +1970,7 @@ function spawnBoss(boss){
       chargeCd:3, atkCd:2 });
     g.bossActive=true;
     g._paused=false;
+    BGM.setBossLord(boss.n);   // 무장별 전용곡 선택용
     BGM.setMode('boss');   // 적장전 음악
     lastT=performance.now();
   });
