@@ -15,15 +15,18 @@
   .screen{ position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
     z-index:20; padding:16px; text-align:center; }
   .screen.on{ display:flex; }
+  /* 타이틀: 콘텐츠가 길어도 잘리지 않게 세로 스크롤 + 상단 여백 정렬 */
+  #titleScreen{ justify-content:flex-start; overflow-y:auto; padding:max(4vh,20px) 16px 90px; }
+  #titleScreen .brush-title{ margin-top:2vh; }
   .brush-title{ font-size:64px; font-weight:900; letter-spacing:8px; line-height:1;
     background:linear-gradient(180deg,#f6e4a8,#c99a3a); -webkit-background-clip:text; background-clip:text; color:transparent;
     text-shadow:0 4px 30px rgba(200,150,50,.4); }
   .sub-title{ font-size:15px; color:#b09a72; margin-top:8px; letter-spacing:4px; }
-  .menu-btn{ margin-top:26px; padding:15px 46px; font-size:21px; font-weight:700; color:#1a1410;
+  .menu-btn{ margin-top:20px; padding:15px 46px; font-size:21px; font-weight:700; color:#1a1410;
     background:linear-gradient(180deg,#f0d382,#d0a444); border:none; border-radius:12px;
     box-shadow:0 6px 0 #8a6a20, 0 10px 20px rgba(0,0,0,.4); cursor:pointer; }
   .menu-btn:active{ transform:translateY(4px); box-shadow:0 2px 0 #8a6a20; }
-  .menu-btn.sm{ font-size:15px; padding:11px 30px; margin-top:12px;
+  .menu-btn.sm{ font-size:15px; padding:11px 30px; margin-top:10px;
     background:linear-gradient(180deg,#4a4038,#332b24); color:#e8dcc0; box-shadow:0 4px 0 #1a1410; }
 
   /* 무장 선택 — 그리드로 고정, 글자 잘림 방지 */
@@ -541,7 +544,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.15";
+const GAME_VER = "v5.16";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
