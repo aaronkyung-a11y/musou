@@ -574,7 +574,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.22";
+const GAME_VER = "v5.23";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -2765,7 +2765,7 @@ function showUltCutin(hero, name, isCrit){
   if(isCrit){
     // 크리 전용 컷신 아트가 있으면 사용, 없으면 초상화로 폴백
     const slug=HERO_SLUG[hero.n];
-    const cutinArt = slug ? `<img src="assets/cutin_${slug}.jpg" onerror="this.onerror=null;this.src='${img?img.src:''}'">` : portrait;
+    const cutinArt = slug ? `<img src="assets/cutin_${slug}.png" onerror="this.onerror=null;this.src='${img?img.src:''}'">` : portrait;
     el.innerHTML=`<div class="uc-flash crit"></div><div class="uc-portrait crit">${cutinArt}</div>
       <div class="uc-critlabel">天下無雙</div>
       <div class="uc-name" style="color:#ff4060">${hero.n}</div>
