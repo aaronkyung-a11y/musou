@@ -213,7 +213,7 @@
   .ending-badge{ font-size:16px; font-weight:900; color:#ffd050; letter-spacing:8px; margin-bottom:16px; text-shadow:0 0 20px rgba(255,208,80,.6); }
   .ending-illust{ position:relative; width:100%; aspect-ratio:16/10; border-radius:16px; overflow:hidden;
     border:2px solid rgba(255,190,80,.4); box-shadow:0 8px 32px rgba(0,0,0,.6), inset 0 0 40px rgba(0,0,0,.4); margin-bottom:18px; background:#160f08; }
-  .ending-illust img{ width:100%; height:100%; object-fit:cover; display:none; }
+  .ending-illust img{ width:100%; height:100%; object-fit:contain; display:none; }
   .ending-illust img.on{ display:block; }
   .ending-illust-ph{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     background:linear-gradient(160deg,#2a1c0e,#160f08); }
@@ -552,7 +552,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.18";
+const GAME_VER = "v5.19";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -741,8 +741,8 @@ const SFX = {
     const t=ctx.currentTime;
     const o=ctx.createOscillator(), o2=ctx.createOscillator(), g=ctx.createGain();
     o.type='triangle'; o.frequency.setValueAtTime(freq,t);
-    o2.type='square'; o2.frequency.setValueAtTime(freq*1.5,t); // 불협 배음 → 금속감
-    const g2=ctx.createGain(); g2.gain.value=0.3; o2.connect(g2); g2.connect(g);
+    o2.type='triangle'; o2.frequency.setValueAtTime(freq*2.01,t); // 옥타브 배음(부드러운 금속감)
+    const g2=ctx.createGain(); g2.gain.value=0.18; o2.connect(g2); g2.connect(g);
     g.gain.setValueAtTime(vol||0.2, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur);
     o.connect(g); g.connect(this.master); o.start(t); o2.start(t); o.stop(t+dur+0.02); o2.stop(t+dur+0.02);
   },
@@ -760,20 +760,19 @@ const SFX = {
   // 기본 타격: 날카로운 검격 노이즈 + 저역 툭 + 고역 착 (음악 위로 뚫고 나옴)
   hit(){
     const now=performance.now(); if(now-this.lastHit<40) return; this.lastHit=now;
-    this.noiseBurst(0.05, 0.3, 'bandpass', 2800, 0.8);    // 검날 스침
-    this.noiseBurst(0.03, 0.2, 'highpass', 5000, 0.5);    // 고역 착 (잘 들림)
-    this.thud(160, 0.08, 0.4, 60);                        // 임팩트 몸통
+    this.noiseBurst(0.045, 0.26, 'bandpass', 1600, 1.1);  // 검날 스침 (중역, 덜 날카롭게)
+    this.thud(120, 0.09, 0.48, 45);                        // 묵직한 임팩트 (저역 강화)
   },
   // 적 피격 (퍽): 짧고 둔탁하지만 확실히 들리게
   enemyHit(){ const now=performance.now(); if(now-(this._lastEH||0)<35) return; this._lastEH=now;
-    this.noiseBurst(0.04, 0.22, 'bandpass', 1800, 0.7);
-    this.thud(120, 0.06, 0.3, 50);
+    this.noiseBurst(0.038, 0.2, 'bandpass', 1200, 1.0);
+    this.thud(100, 0.06, 0.34, 40);
   },
   // 크리티컬: 금속 챙 + 강한 저역 펀치 + 노이즈
   crit(){
-    this.noiseBurst(0.08, 0.32, 'highpass', 3200, 0.6);
-    this.metal(760, 0.16, 0.26);
-    this.thud(210, 0.13, 0.5, 70);
+    this.noiseBurst(0.07, 0.28, 'bandpass', 2200, 1.0);
+    this.metal(520, 0.12, 0.14);
+    this.thud(160, 0.14, 0.55, 55);
   },
   // 스킬: 저역 스웰 + 밴드 노이즈 스윕 (묵직한 발동감)
   skill(){
@@ -2439,6 +2438,32 @@ function useSkill1(){
       const dir=aimDir();
       for(let i=0;i<4;i++) setTimeout(()=>{ if(G&&!G.gameOver){ const d=aimDir(); g.slashes.push({type:'cone',cx:g.px,cy:g.py,range:130*g.rangeMul,dmg:dmg*0.7,dir:d,half:Math.PI*0.4,age:0,dur:0.14,hitSet:new Set(),fx:{type:'cone',range:130,dir:d}}); } }, i*90);
       break; }
+    case '마초': {  // 서량철기: 돌진하며 전방 관통 강타
+      const d=aimDir();
+      g.px+=Math.cos(d)*140; g.py+=Math.sin(d)*140;
+      g.px=Math.max(30,Math.min(g.worldW-30,g.px)); g.py=Math.max(30,Math.min(g.worldH-30,g.py));
+      for(let i=0;i<3;i++) shootProj(d+(i-1)*0.12,720,dmg*1.1,360,99,'#f0ece0',7);
+      g.slashes.push({type:'cone',cx:g.px,cy:g.py,range:150*g.rangeMul,dmg:dmg*1.2,dir:d,half:Math.PI*0.4,age:0,dur:0.2,hitSet:new Set(),knock:30,fx:{type:'cone',range:150*g.rangeMul,dir:d,big:true}});
+      auraBurst('#e0d0c0');
+      break; }
+    case '조조': {  // 효웅단: 전방 십자 검격
+      const d=aimDir();
+      for(let k=0;k<4;k++){ const a=d+k*(Math.PI/2);
+        g.slashes.push({type:'cone',cx:g.px,cy:g.py,range:160*g.rangeMul,dmg:dmg*0.9,dir:a,half:Math.PI*0.3,age:0,dur:0.22,hitSet:new Set(),knock:20,fx:{type:'cone',range:160*g.rangeMul,dir:a,big:true}}); }
+      auraBurst('#6a9fe0');
+      break; }
+    case '주유': {  // 연환계: 폭발하는 화염탄 다발
+      const dir=aimDir();
+      for(let i=0;i<5;i++) setTimeout(()=>{ if(G&&!G.gameOver){ const d=dir+(i-2)*0.14;
+        shootProj(d,540,dmg*0.9,320,3,'#ff5020',8);
+        // 착탄 지점 화염 폭발 연출
+        setTimeout(()=>{ if(G){ const ex=g.px+Math.cos(d)*260, ey=g.py+Math.sin(d)*260;
+          for(let j=0;j<14;j++){ const a=Math.random()*Math.PI*2,sp=60+Math.random()*160;
+            g.particles.push({x:ex,y:ey,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:0.4,col:j%2?'#ff9040':'#ff4020',r:5}); }
+          g.slashes.push({type:'spin',cx:ex,cy:ey,range:90,dmg:dmg*0.8,dir:0,half:Math.PI,age:0,dur:0.15,hitSet:new Set(),fx:{type:'spin',range:90}}); } }, 400);
+      } }, i*70);
+      auraBurst('#ff5020');
+      break; }
   }
 }
 function useSkill2(){
@@ -2461,6 +2486,14 @@ function useSkill2(){
       break; }
     case '장비': case '황충': { // 주변 기절/넉백
       g.slashes.push({type:'spin',cx:g.px,cy:g.py,range:200,dmg:h.wpn.dmg*g.dmgMul,dir:0,half:Math.PI,age:0,dur:0.3,hitSet:new Set(),knock:50,stun:1.5,fx:{type:'spin',range:200,big:true}});
+      break; }
+    case '마초': g.buffSpd=4; g.buffAtk=3; auraBurst('#e0d0c0'); break;   // 질풍노도: 이속+공격 버프
+    case '조조': g.buffAtk=5; g.buffSpd=3; auraBurst('#4a6fa5'); break;   // 군세호령: 강화
+    case '주유': {  // 동남풍: 전방 화염 폭풍
+      const d=aimDir();
+      for(let i=0;i<8;i++) setTimeout(()=>{ if(G&&!G.gameOver){ const a=d+(Math.random()-.5)*0.5;
+        shootProj(a,480,h.wpn.dmg*g.dmgMul*1.2,300,3,i%2?'#ff5020':'#ff8030',7); } }, i*50);
+      auraBurst('#ff5020');
       break; }
   }
 }
