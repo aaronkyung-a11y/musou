@@ -541,7 +541,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.12";
+const GAME_VER = "v5.13";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -590,6 +590,18 @@ const BGM = {
     return a;
   },
   setBossLord(lordName){ this._bossLord=lordName; },   // spawnBoss에서 호출
+  // 진영별 전투곡 (파일 있으면 사용, 없으면 기본 bgm_battle.mp3=촉 곡으로 폴백)
+  FACTION_BATTLE:{ '위':'wei', '오':'wu' },   // 촉/기타는 기본곡 사용
+  _battleFor(fac){
+    const slug=this.FACTION_BATTLE[fac]; if(!slug) return null;
+    const key='battle_'+slug;
+    if(this.tracks[key]) return this.tracks[key];
+    const a=new Audio(); a.src='assets/bgm_battle_'+slug+'.mp3';
+    a.loop=true; a.preload='auto'; a.volume=0;
+    a.addEventListener('error', ()=>{ this.tracks[key]='__fail__'; });
+    this.tracks[key]=a;
+    return a;
+  },
   _fade(audio, to, ms){
     if(!audio) return;
     const from=audio.volume, steps=14, iv=Math.max(16,ms/steps);
@@ -604,11 +616,15 @@ const BGM = {
   },
   _play(mode){
     if(!this.enabled) return;
-    // boss 모드: 전용곡이 있고 로드 가능하면 그걸, 아니면 기본 보스곡
-    let a;
+    let a, fallbackMode=null;
     if(mode==='boss' && this._bossLord){
       const bt=this._bossFor(this._bossLord);
       a = (bt && bt!=='__fail__') ? bt : this._get('boss');
+      if(bt && bt!=='__fail__') fallbackMode='boss';
+    } else if(mode==='battle'){
+      const ft=this._battleFor(this.faction);
+      a = (ft && ft!=='__fail__') ? ft : this._get('battle');
+      if(ft && ft!=='__fail__') fallbackMode='battle';
     } else {
       a=this._get(mode);
     }
@@ -616,6 +632,13 @@ const BGM = {
     if(this.cur && this.cur!==a) this._fade(this.cur, 0, 600);
     this.cur=a; this.curMode=mode;
     const vol = (mode==='battle'||mode==='boss')?0.36:0.4;
+    // 전용/진영 곡 로드 실패 시 기본곡으로 즉시 전환
+    if(fallbackMode){
+      a.addEventListener('error', ()=>{
+        if(this.cur===a){ const base=this._get(fallbackMode); this.cur=base;
+          try{ const pr=base.play(); if(pr&&pr.catch)pr.catch(()=>{}); }catch(e){} this._fade(base, vol, 300); }
+      }, {once:true});
+    }
     try{
       const pr=a.play();
       if(pr&&pr.catch) pr.catch(()=>{});
