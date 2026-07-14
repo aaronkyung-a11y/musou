@@ -13,10 +13,11 @@
   canvas{ display:block; width:100%; height:100%; background:#1a1208; }
 
   .screen{ position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
-    z-index:20; padding:16px; text-align:center; }
+    z-index:20; padding:16px; text-align:center; background:radial-gradient(ellipse at 50% 25%, #1a1108, #0a0604 78%); }
   .screen.on{ display:flex; }
   /* 타이틀: 콘텐츠가 길어도 잘리지 않게 세로 스크롤 + 상단 여백 정렬 */
-  #titleScreen{ justify-content:flex-start; overflow-y:auto; padding:max(4vh,20px) 16px 90px; }
+  #titleScreen{ justify-content:flex-start; overflow-y:auto; padding:max(4vh,20px) 16px 90px;
+    background:radial-gradient(ellipse at 50% 25%, #1a1108, #0a0604 75%); }
   #titleScreen .brush-title{ margin-top:2vh; }
   .brush-title{ font-size:64px; font-weight:900; letter-spacing:8px; line-height:1;
     background:linear-gradient(180deg,#f6e4a8,#c99a3a); -webkit-background-clip:text; background-clip:text; color:transparent;
@@ -544,7 +545,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.16";
+const GAME_VER = "v5.17";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -1659,7 +1660,10 @@ function startGame(heroIdx){
   checkOrient();
   startChapter(0);   // 1장부터 시작
 }
-function endLoop(){ running=false; if(rafId) cancelAnimationFrame(rafId); rafId=null; }
+function endLoop(){ running=false; if(rafId) cancelAnimationFrame(rafId); rafId=null;
+  // 게임 화면 잔상 제거 (죽은 뒤 타이틀에 전투 장면이 겹쳐 보이던 문제)
+  try{ ctx.clearRect(0,0,cv.width,cv.height); }catch(e){}
+}
 
 /* =========================================================
    시나리오 진행
