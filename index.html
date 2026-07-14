@@ -541,7 +541,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.13";
+const GAME_VER = "v5.14";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -592,6 +592,18 @@ const BGM = {
   setBossLord(lordName){ this._bossLord=lordName; },   // spawnBoss에서 호출
   // 진영별 전투곡 (파일 있으면 사용, 없으면 기본 bgm_battle.mp3=촉 곡으로 폴백)
   FACTION_BATTLE:{ '위':'wei', '오':'wu' },   // 촉/기타는 기본곡 사용
+  // 플레이어 무장별 전투곡 (진영곡보다 우선). 여포는 자신의 보스곡을 전투곡으로 재활용.
+  HERO_BATTLE:{ '여포':{ src:'assets/bgm_boss_lubu.mp3', key:'battle_hero_lubu' } },
+  _heroBattleFor(name){
+    const cfg=this.HERO_BATTLE[name]; if(!cfg) return null;
+    if(this.tracks[cfg.key]) return this.tracks[cfg.key];
+    const a=new Audio(); a.src=cfg.src;
+    a.loop=true; a.preload='auto'; a.volume=0;
+    a.addEventListener('error', ()=>{ this.tracks[cfg.key]='__fail__'; });
+    this.tracks[cfg.key]=a;
+    return a;
+  },
+  setHero(name){ this._heroName=name; },   // startGame에서 호출
   _battleFor(fac){
     const slug=this.FACTION_BATTLE[fac]; if(!slug) return null;
     const key='battle_'+slug;
@@ -622,9 +634,14 @@ const BGM = {
       a = (bt && bt!=='__fail__') ? bt : this._get('boss');
       if(bt && bt!=='__fail__') fallbackMode='boss';
     } else if(mode==='battle'){
-      const ft=this._battleFor(this.faction);
-      a = (ft && ft!=='__fail__') ? ft : this._get('battle');
-      if(ft && ft!=='__fail__') fallbackMode='battle';
+      // 무장 전용 전투곡 > 진영 전투곡 > 기본곡
+      const ht=this._heroBattleFor(this._heroName);
+      if(ht && ht!=='__fail__'){ a=ht; fallbackMode='battle'; }
+      else {
+        const ft=this._battleFor(this.faction);
+        a = (ft && ft!=='__fail__') ? ft : this._get('battle');
+        if(ft && ft!=='__fail__') fallbackMode='battle';
+      }
     } else {
       a=this._get(mode);
     }
@@ -1600,6 +1617,7 @@ function startGame(heroIdx){
   const sc = SCENARIOS[h.f] || SCENARIOS['촉'];
   SCENARIO = sc.stages;
   G_scenarioInfo = sc;
+  BGM.setHero(h.n);      // 플레이어 무장별 전투곡용
   BGM.setFaction(h.f);   // 진영별 곡조
   BGM.setMode('battle');
   SFX.ensure();          // 효과음 오디오 컨텍스트 확실히 준비
