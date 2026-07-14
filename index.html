@@ -154,7 +154,8 @@
   .story-intro{ font-size:17px; color:#e8dcc0; line-height:1.9; white-space:pre-line; margin-bottom:22px; }
   .story-goal{ font-size:15px; color:#c9a05a; font-weight:700; border:1px solid #5a4a30; border-radius:10px;
     padding:10px 18px; display:inline-block; margin-bottom:28px; }
-  .story-tap{ font-size:15px; color:#9a8666; animation:tapBlink 1.4s infinite; }
+  .story-tap{ font-size:15px; color:#9a8666; animation:tapBlink 1.4s infinite; opacity:0; transition:opacity .4s; }
+  #storyScreen.tap-ready .story-tap{ opacity:1; }
   @keyframes tapBlink{ 0%,100%{opacity:.4} 50%{opacity:1} }
   .clear-stamp{ font-size:64px; font-weight:900; color:var(--wu); border:5px solid var(--wu); border-radius:16px;
     display:inline-block; padding:6px 28px; transform:rotate(-8deg); letter-spacing:8px;
@@ -371,26 +372,26 @@
   @keyframes ucText{ 0%{transform:translateX(60px);opacity:0} 25%{transform:translateX(0);opacity:1}
     75%{opacity:1} 100%{opacity:0} }
   /* === 레어 크리티컬 필살기 컷신 (천하무쌍) === */
-  #ultCutin.critgo .uc-flash.crit{ animation:ucFlashCrit 1.4s ease-out forwards;
+  #ultCutin.critgo .uc-flash.crit{ animation:ucFlashCrit 2s ease-out forwards;
     background:radial-gradient(ellipse at 50% 50%, rgba(255,80,60,.7), rgba(255,200,80,.35) 45%, transparent 70%); }
   @keyframes ucFlashCrit{ 0%{opacity:0} 8%{opacity:1} 20%{opacity:.6} 30%{opacity:1} 100%{opacity:0} }
   #ultCutin.critgo{ justify-content:center; }
   #ultCutin .uc-portrait.crit{ width:min(58vw,420px); height:min(58vw,420px); margin-left:0;
     filter:drop-shadow(0 0 40px rgba(255,60,60,.8)) drop-shadow(0 0 80px rgba(255,180,60,.5)) brightness(1.1);
-    transform:scale(.4); animation:ucCritPop 1.4s cubic-bezier(.15,1.4,.35,1) forwards; }
+    transform:scale(.4); animation:ucCritPop 2s cubic-bezier(.15,1.4,.35,1) forwards; }
   @keyframes ucCritPop{ 0%{transform:scale(.4) rotate(-6deg);opacity:0}
     12%{transform:scale(1.12) rotate(2deg);opacity:1} 22%{transform:scale(1) rotate(0)}
     78%{transform:scale(1);opacity:1} 100%{transform:scale(1.06);opacity:0} }
   #ultCutin .uc-critlabel{ position:absolute; top:14%; left:0; right:0; text-align:center;
     font-size:min(15vw,90px); font-weight:900; letter-spacing:8px; color:#fff;
     text-shadow:0 0 20px #ff3040, 0 0 40px #ff6020, 0 4px 8px #000;
-    transform:scale(1.6); opacity:0; animation:ucCritLabel 1.4s ease-out forwards; }
+    transform:scale(1.6); opacity:0; animation:ucCritLabel 2s ease-out forwards; }
   @keyframes ucCritLabel{ 0%{transform:scale(1.6);opacity:0} 12%{transform:scale(1);opacity:1}
     80%{opacity:1} 100%{opacity:0; transform:scale(1.1)} }
   #ultCutin.critgo .uc-name{ top:auto; bottom:22%; left:0; right:0; text-align:center; transform:none;
-    animation:ucCritText 1.4s ease-out .15s forwards; }
+    animation:ucCritText 2s ease-out .15s forwards; }
   #ultCutin.critgo .uc-skill{ top:auto; bottom:15%; left:0; right:0; text-align:center; transform:none;
-    animation:ucCritText 1.4s ease-out .25s forwards; }
+    animation:ucCritText 2s ease-out .25s forwards; }
   @keyframes ucCritText{ 0%{opacity:0} 18%{opacity:1} 82%{opacity:1} 100%{opacity:0} }
 
   .rotate-hint{ position:absolute; inset:0; z-index:50; background:#0a0806; display:none;
@@ -574,7 +575,7 @@
 const FAC_COLOR={"촉":"#3f8f5f","위":"#4a6fa5","오":"#c0392b","기타":"#8e7cc3"};
 
 /* 게임 버전 — 한 곳에서 관리. 타이틀/HUD에 자동 표시 */
-const GAME_VER = "v5.23";
+const GAME_VER = "v5.24";
 function applyVersionTags(){
   const vt=document.getElementById('verTag'); if(vt) vt.textContent=GAME_VER;
   const hv=document.getElementById('hudVer'); if(hv) hv.textContent=GAME_VER;
@@ -1719,7 +1720,10 @@ function showStoryScreen(sc, cb){
   $('storyIntro').textContent=sc.intro;
   $('storyGoal').textContent='목표: 적병 '+sc.killGoal+'명 격파 후 적장 토벌';
   el.classList.add('on');
-  const startFn=()=>{ el.classList.remove('on'); el.removeEventListener('pointerdown',startFn); cb&&cb(); };
+  // 최소 표시 시간(0.8초) 동안은 탭 무시 → 실수로 즉시 스킵 방지
+  let ready=false;
+  setTimeout(()=>{ ready=true; el.classList.add('tap-ready'); }, 800);
+  const startFn=()=>{ if(!ready) return; el.classList.remove('on','tap-ready'); el.removeEventListener('pointerdown',startFn); cb&&cb(); };
   el.addEventListener('pointerdown', startFn);
 }
 
@@ -2747,7 +2751,8 @@ function fireUlt(){
   g.ultPose=1;   // 필살기 치켜든 포즈 (freeze 동안 유지)
 
   // === 1단계: 강렬한 정지 + 줌인 + 컷인 + 기술명 ===
-  FX.impactUltStart();     // 히트스톱 0.55초 + 줌펀치 1.85
+  if(g.ultCrit){ FX.stop(1.6); FX.zoomPunch(2.0,1.6); FX.shake(1.4); }   // 크리: 긴 정지로 컷신 감상
+  else FX.impactUltStart();     // 히트스톱 0.55초 + 줌펀치 1.85
   timeScale=0;             // 게임 시간 완전 정지
   camShake=g.ultCrit?0.6:0.3;
   showUltCutin(g.hero, ult.name, g.ultCrit);   // 무장 컷인 (크리면 특별 연출)
@@ -2755,7 +2760,7 @@ function fireUlt(){
 
   clearTimeout(window._ultT);
   clearTimeout(window._ultT2);
-  window._ultT=setTimeout(()=>{ ultBurst(); }, g.ultCrit?900:550);
+  window._ultT=setTimeout(()=>{ ultBurst(); }, g.ultCrit?1700:550);
 }
 // 필살기 컷인: 무장 초상화가 옆에서 확 들어오는 연출
 function showUltCutin(hero, name, isCrit){
@@ -2772,7 +2777,7 @@ function showUltCutin(hero, name, isCrit){
       <div class="uc-skill" style="color:#ffd050">必殺 · ${name}</div>`;
     el.classList.remove('go','critgo'); void el.offsetWidth; el.classList.add('go','critgo');
     clearTimeout(window._ucT);
-    window._ucT=setTimeout(()=>{ el.classList.remove('go','critgo'); }, 1400);
+    window._ucT=setTimeout(()=>{ el.classList.remove('go','critgo'); }, 2000);
   } else {
     el.innerHTML=`<div class="uc-flash"></div><div class="uc-portrait">${portrait}</div>
       <div class="uc-name" style="color:${FAC_COLOR[hero.f]}">${hero.n}</div>
@@ -3681,7 +3686,7 @@ function showEnding(gong){
   ];
   $('endingReport').innerHTML=rows.map(([k,v])=>`<div class="er-row"><span class="er-k">${k}</span><span class="er-v">${v}</span></div>`).join('');
   $('endingGong').innerHTML=`<span style="color:#ffd050">🎖️ 전공 +${gong}</span> <span style="color:#9a8666">(보유 ${META.gongxun})</span>`;
-  setTimeout(()=>{ show('endingScreen'); showAchToast(window._newAch); window._newAch=null; },700);
+  setTimeout(()=>{ show('endingScreen'); const es=$('endingScreen'); if(es) es.scrollTop=0; showAchToast(window._newAch); window._newAch=null; },700);
 }
 function loseGame(){
   G.gameOver=true; endLoop(); $('hud').classList.remove('on');
